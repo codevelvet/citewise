@@ -16,7 +16,10 @@
 
   "containerEnv": {
     "KAMAL_REGISTRY_PASSWORD": "$KAMAL_REGISTRY_PASSWORD",
-    "DB_HOST": "postgres"
+    "ANTHROPIC_API_KEY": "$ANTHROPIC_API_KEY",
+    "DB_HOST": "postgres",
+    "DB_USER": "postgres",
+    "DB_PASSWORD": "devpassword"
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
