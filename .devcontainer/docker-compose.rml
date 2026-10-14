@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      - rails_cache:/workspace/tmp/cache
+    environment:
+      - DB_HOST=db
+      - DB_USER=postgres
+      - DB_PASSWORD=devpassword
+      - RAILS_ENV=development
+    # Overrides the default rails server command to let Dev Containers manage the lifecycle
+    command: sleep infinity
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    container_name: rails-pgvector-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: citewise_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    # pgvector requires sufficient shared memory for HNSW/IVFFlat index building
+    shm_size: '512mb'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
+  rails_cache:
+
