@@ -12,6 +12,11 @@ services:
     # Overrides default command so things don't shut down after the process ends.
     command: sleep infinity
 
+    # Local secrets (e.g. ANTHROPIC_API_KEY). Git- and docker-ignored; see .env.example.
+    env_file:
+    - path: ../.env
+      required: false
+
     # Uncomment the next line to use a non-root user for all processes.
     # user: vscode
 
