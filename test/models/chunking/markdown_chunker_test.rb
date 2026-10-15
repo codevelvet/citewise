@@ -103,8 +103,84 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_equal Digest::SHA256.hexdigest("Some body text."), chunk.content_hash
   end
 
+  test "rejects inconsistent size settings" do
+    assert_raises(ArgumentError) { Chunking::MarkdownChunker.new(target_tokens: 600, max_tokens: 512) }
+    assert_raises(ArgumentError) { Chunking::MarkdownChunker.new(target_tokens: 100, overlap_tokens: 100) }
+  end
+
+  test "a section under max_tokens stays whole" do
+    chunks = small_chunk("## Section\n\n#{paragraph(1)}\n\n#{paragraph(2)}\n\n#{paragraph(3)}\n", max_tokens: 50)
+
+    assert_equal 1, chunks.size
+  end
+
+  test "splits an oversized section on paragraph boundaries, repeating the last sentence as overlap" do
+    paragraphs = (1..6).map { |i| paragraph(i) }
+    chunks = small_chunk("## Section\n\n#{paragraphs.join("\n\n")}\n")
+
+    assert_equal [ [ "Doc", "Section" ] ] * 3, chunks.map(&:heading_path)
+    assert_equal "#{paragraphs[0]}\n\n#{paragraphs[1]}", chunks[0].content
+    assert_equal "P2 s3 alpha beta gamma.\n\n#{paragraphs[2]}\n\n#{paragraphs[3]}", chunks[1].content
+    assert_equal "P4 s3 alpha beta gamma.\n\n#{paragraphs[4]}\n\n#{paragraphs[5]}", chunks[2].content
+    chunks.each { |chunk| assert_operator chunk.token_count, :<=, 40 }
+  end
+
+  test "overlap can be turned off" do
+    paragraphs = (1..6).map { |i| paragraph(i) }
+    chunks = small_chunk("## Section\n\n#{paragraphs.join("\n\n")}\n", overlap_tokens: 0)
+
+    assert_equal paragraphs.join("\n\n"), chunks.map(&:content).join("\n\n")
+  end
+
+  test "never splits a code block, even one larger than max_tokens, and never overlaps from it" do
+    code = "```ruby\n#{Array.new(100) { |i| "puts #{i}. # line" }.join("\n")}\n```"
+    chunks = small_chunk("## Section\n\n#{paragraph(1)}\n\n#{code}\n\n#{paragraph(2)}\n")
+
+    assert_equal [ paragraph(1), code, paragraph(2) ], chunks.map(&:content)
+    assert_operator chunks[1].token_count, :>, 50
+  end
+
+  test "never splits a table" do
+    table = "| a | b |\n|---|---|\n#{Array.new(40) { |i| "| row #{i}. | value |" }.join("\n")}"
+    chunks = small_chunk("## Section\n\n#{paragraph(1)}\n\n#{table}\n\n#{paragraph(2)}\n")
+
+    assert_equal [ paragraph(1), table, paragraph(2) ], chunks.map(&:content)
+  end
+
+  test "splits a long list between its items" do
+    items = (1..10).map { |i| "- Item #{i} alpha beta gamma delta epsilon." }
+    chunks = small_chunk("## Section\n\n#{items.join("\n")}\n", overlap_tokens: 0)
+
+    assert_operator chunks.size, :>, 1
+    assert_equal items, chunks.flat_map { |chunk| chunk.content.split("\n\n") }
+  end
+
+  test "leaves a single paragraph larger than max_tokens whole" do
+    long = Array.new(80) { |i| "Sentence #{i} here." }.join(" ")
+    chunks = small_chunk("## Section\n\n#{paragraph(1)}\n\n#{long}\n")
+
+    assert_equal [ paragraph(1), long ], chunks.map(&:content)
+    assert_operator chunks.last.token_count, :>, 50
+  end
+
   private
+    # Counts words, so sizes in these tests are easy to reason about.
+    class WordCounter
+      def count(text)
+        text.split.size
+      end
+    end
+
     def chunk(markdown, title: "Doc", **options)
       Chunking::MarkdownChunker.new(**options).call(markdown, title: title)
+    end
+
+    def small_chunk(markdown, target_tokens: 40, max_tokens: 50, overlap_tokens: 6, **options)
+      chunk(markdown, target_tokens: target_tokens, max_tokens: max_tokens, overlap_tokens: overlap_tokens, token_counter: WordCounter.new, **options)
+    end
+
+    # Fifteen words in three sentences.
+    def paragraph(number)
+      (1..3).map { |sentence| "P#{number} s#{sentence} alpha beta gamma." }.join(" ")
     end
 end
