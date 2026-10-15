@@ -56,6 +56,15 @@ class DocumentTest < ActiveSupport::TestCase
     assert Document.create(title: "Copy", source_type: :url, source_uri: "handbooks/employee.md").persisted?
   end
 
+  test "outdated returns documents with an old or missing chunker fingerprint" do
+    current = Document.create!(title: "Current", source_type: :upload, chunker_fingerprint: Ingestion::DocumentIngester.new.fingerprint)
+    old = Document.create!(title: "Old", source_type: :upload, chunker_fingerprint: "0:000000000000")
+
+    assert_includes Document.outdated, old
+    assert_includes Document.outdated, documents(:handbook)
+    assert_not_includes Document.outdated, current
+  end
+
   test "allows many documents without a source_uri" do
     Document.insert_all!([
       { title: "One", source_type: "upload" },
