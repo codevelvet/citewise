@@ -316,6 +316,43 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_includes log.string, "Skipped 2 mermaid code block(s)"
   end
 
+  test "chunking the same file twice gives equal results" do
+    markdown = file_fixture("handbook/gitlabengineering.md").read
+    chunker = Chunking::MarkdownChunker.new
+
+    assert_equal chunker.call(markdown, title: "Doc"), chunker.call(markdown, title: "Doc")
+  end
+
+  test "fingerprint combines the version with a short settings digest" do
+    assert_match(/\A1:\h{12}\z/, Chunking::MarkdownChunker.new.fingerprint)
+  end
+
+  test "fingerprint is stable for the same settings" do
+    settings = { target_tokens: 300, max_tokens: 400, min_tokens: 50, overlap_tokens: 20, merge_policy: :common_prefix }
+
+    assert_equal Chunking::MarkdownChunker.new(**settings).fingerprint, Chunking::MarkdownChunker.new(**settings).fingerprint
+    assert_equal Chunking::MarkdownChunker.new.fingerprint, Chunking::MarkdownChunker.new(logger: Logger.new(nil)).fingerprint
+  end
+
+  test "fingerprint changes when any setting changes" do
+    default = Chunking::MarkdownChunker.new.fingerprint
+    changes = [
+      { target_tokens: 401 }, { max_tokens: 513 }, { min_tokens: 99 }, { overlap_tokens: 51 },
+      { merge_policy: :none }, { token_counter: WordCounter.new }
+    ]
+
+    fingerprints = changes.map { |change| Chunking::MarkdownChunker.new(**change).fingerprint }
+    assert_not_includes fingerprints, default
+    assert_equal changes.size, fingerprints.uniq.size
+  end
+
+  test "fingerprint changes when the version changes" do
+    bumped = Class.new(Chunking::MarkdownChunker) { const_set(:VERSION, Chunking::MarkdownChunker::VERSION + 1) }
+
+    assert_not_equal Chunking::MarkdownChunker.new.fingerprint, bumped.new.fingerprint
+    assert_equal Chunking::MarkdownChunker.new.fingerprint.split(":").last, bumped.new.fingerprint.split(":").last
+  end
+
   private
     # Counts words, so sizes in these tests are easy to reason about.
     class WordCounter

@@ -7,6 +7,8 @@ module Chunking
   # Chunk content is the original Markdown source of a section's body. Headings
   # live in heading_path, which always starts with the document title.
   class MarkdownChunker
+    # Bump whenever chunking logic changes, so #fingerprint shows which documents older code chunked.
+    VERSION = 1
     PARSE_OPTIONS = { extension: { table: true, front_matter_delimiter: "---" } }.freeze
     # Never split, and never used as overlap.
     ATOMIC_TYPES = %i[code_block table].freeze
@@ -46,6 +48,16 @@ module Chunking
 
       pieces = sections(document, lines, title).flat_map { |section| split(section) }
       merge(pieces).each_with_index.map { |piece, position| build_chunk(piece, position) }
+    end
+
+    # Identifies the code version and settings that produced a set of chunks, e.g. "1:a3f9c2e81b04".
+    # Settings are listed in a fixed order so the same settings always give the same digest.
+    def fingerprint
+      settings = {
+        target_tokens: target_tokens, max_tokens: max_tokens, min_tokens: min_tokens, overlap_tokens: overlap_tokens,
+        merge_policy: merge_policy, token_counter: token_counter.class.name
+      }
+      "#{self.class::VERSION}:#{Digest::SHA256.hexdigest(settings.to_json).first(12)}"
     end
 
     private
