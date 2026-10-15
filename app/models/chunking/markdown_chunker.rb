@@ -14,20 +14,27 @@ module Chunking
     # Hugo shortcode tags such as {{% note %}}, {{< figure src="x" >}}, and {{% /note %}}.
     SHORTCODE = /\{\{[<%].*?[%>]\}\}/m
     HTML_TAG = /<[^>]*>/
+    # How tiny pieces merge with a neighbor:
+    #   :none           - never
+    #   :within_section - only when the larger piece keeps its own path, e.g. a short subsection into its parent
+    #   :common_prefix  - whenever the two share a top-level section; the merged chunk takes their common path
+    MERGE_POLICIES = %i[none within_section common_prefix].freeze
 
     Section = Data.define(:heading_path, :headings, :blocks)
     # items are the units a block may be split into: list items for a list, else the whole block.
     Block = Data.define(:type, :text, :items)
     Piece = Data.define(:heading_path, :headings, :text)
 
-    def initialize(target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50,
+    def initialize(target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50, merge_policy: :within_section,
                    token_counter: TokenCounter::Approximate.new, logger: Rails.logger)
       unless 0 <= min_tokens && min_tokens <= target_tokens && 0 < target_tokens && target_tokens <= max_tokens &&
              0 <= overlap_tokens && overlap_tokens < target_tokens
         raise ArgumentError, "expected 0 <= min_tokens <= target_tokens <= max_tokens, 0 < target_tokens, and 0 <= overlap_tokens < target_tokens"
       end
+      raise ArgumentError, "merge_policy must be one of #{MERGE_POLICIES.join(", ")}" unless merge_policy.in?(MERGE_POLICIES)
 
       @target_tokens, @max_tokens, @min_tokens, @overlap_tokens = target_tokens, max_tokens, min_tokens, overlap_tokens
+      @merge_policy = merge_policy
       @token_counter = token_counter
       @logger = logger
     end
@@ -42,7 +49,7 @@ module Chunking
     end
 
     private
-      attr_reader :target_tokens, :max_tokens, :min_tokens, :overlap_tokens, :token_counter, :logger
+      attr_reader :target_tokens, :max_tokens, :min_tokens, :overlap_tokens, :merge_policy, :token_counter, :logger
 
       def front_matter_title(document, lines)
         node = document.first_child
@@ -146,19 +153,29 @@ module Chunking
       end
 
       # A piece under min_tokens joins its previous neighbor, or else its next one,
-      # when the result fits in max_tokens and the two share a top-level section.
-      # Otherwise it stays small: a precise heading path retrieves better than a vague one.
+      # when the result fits in max_tokens, the two share a top-level section, and
+      # merge_policy allows it. Otherwise it stays small: a precise heading path
+      # retrieves better than a vague one.
       def merge(pieces)
+        return pieces if merge_policy == :none
+
         pieces.each_with_object([]) do |piece, merged|
           previous = merged.last
           combined = combine(previous, piece) if previous && (tiny?(previous) || tiny?(piece))
 
-          if combined && combined.heading_path.size >= 2 && tokens(combined.text) <= max_tokens
+          if combined && mergeable?(previous, piece, combined)
             merged[-1] = combined
           else
             merged << piece
           end
         end
+      end
+
+      def mergeable?(first, second, combined)
+        return false unless combined.heading_path.size >= 2 && tokens(combined.text) <= max_tokens
+
+        # :within_section keeps the majority of the text labeled as precisely as before.
+        merge_policy == :common_prefix || combined.heading_path == [ first, second ].max_by { |piece| tokens(piece.text) }.heading_path
       end
 
       # The combined piece sits at the common heading path; headings below it

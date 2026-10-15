@@ -62,7 +62,14 @@ class Chunking::MarkdownChunkerHandbookTest < ActiveSupport::TestCase
     chunk = chunk("gitlabengineeringcareers.md").find { |chunk| chunk.content.include?("| Current level") }
 
     assert_includes chunk.content, table
-    assert_equal [ "Engineering Career Development", "Individual Contribution vs. Management", "Temporary Management Positions", "Types of Interim Roles" ], chunk.heading_path
+    assert_equal [ "Engineering Career Development", "Individual Contribution vs. Management", "Temporary Management Positions", "Types of Interim Roles", "Interim Manager" ], chunk.heading_path
+  end
+
+  test "a tiny sibling section stays standalone instead of blurring its neighbor's path" do
+    paths = chunk("gitlabengineering.md").map(&:heading_path)
+
+    assert_includes paths, [ "Engineering", "Engineering Culture", "Engineering Innovation" ]
+    assert_includes paths, [ "Engineering", "Engineering Culture", "Technical Roadmaps" ]
   end
 
   test "the note shortcode around the time off process keeps its text" do

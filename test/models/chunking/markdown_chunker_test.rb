@@ -170,55 +170,78 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_equal [ paragraphs.first(2).join("\n\n"), "P2 s3 alpha beta gamma.\n\n#{paragraphs[2]}\n\n#{paragraphs[3]}\n\nTiny tail." ], chunks.map(&:content)
   end
 
-  test "merges tiny sibling sections under their common heading" do
-    chunks = merge_chunk(<<~MD)
-      ## Time off
+  test "rejects an unknown merge policy" do
+    assert_raises(ArgumentError) { Chunking::MarkdownChunker.new(merge_policy: :siblings) }
+  end
 
-      ### One
+  test "within_section: a tiny subsection merges into its larger parent, which keeps its path" do
+    chunks = merge_chunk("## Parent\n\n#{paragraph(1)}\n\n### Child\n\nShort child.\n")
 
-      Short one.
+    assert_equal [ [ "Doc", "Parent" ] ], chunks.map(&:heading_path)
+    assert_equal "#{paragraph(1)}\n\n### Child\n\nShort child.", chunks.first.content
+  end
 
-      ### Two
+  test "within_section: a tiny parent intro does not take over its larger first subsection" do
+    chunks = merge_chunk("## Parent\n\nIntro.\n\n### Child\n\n#{paragraph(1)}\n")
 
-      Short two.
-    MD
+    assert_equal [ [ "Doc", "Parent" ], [ "Doc", "Parent", "Child" ] ], chunks.map(&:heading_path)
+  end
+
+  test "within_section: tiny siblings stay separate with their own paths" do
+    chunks = merge_chunk("## Time off\n\n### One\n\nShort one.\n\n### Two\n\nShort two.\n")
+
+    assert_equal [ [ "Doc", "Time off", "One" ], [ "Doc", "Time off", "Two" ] ], chunks.map(&:heading_path)
+    assert_equal [ "Short one.", "Short two." ], chunks.map(&:content)
+  end
+
+  test "common_prefix: merges tiny sibling sections under their common heading" do
+    chunks = merge_chunk("## Time off\n\n### One\n\nShort one.\n\n### Two\n\nShort two.\n", merge_policy: :common_prefix)
 
     assert_equal [ [ "Doc", "Time off" ] ], chunks.map(&:heading_path)
     assert_equal "### One\n\nShort one.\n\n### Two\n\nShort two.", chunks.first.content
   end
 
-  test "a tiny parent intro merges forward into its first subsection" do
-    chunks = merge_chunk("## Parent\n\nIntro.\n\n### Child\n\nChild body.\n")
+  test "common_prefix: a tiny parent intro merges forward into its first subsection" do
+    chunks = merge_chunk("## Parent\n\nIntro.\n\n### Child\n\nChild body.\n", merge_policy: :common_prefix)
 
     assert_equal [ [ "Doc", "Parent" ] ], chunks.map(&:heading_path)
     assert_equal "Intro.\n\n### Child\n\nChild body.", chunks.first.content
   end
 
-  test "keeps every heading below the common path when merging deeper sections" do
-    chunks = merge_chunk("## A\n\n### B\n\n#### X\n\nX body.\n\n### C\n\nC body.\n")
+  test "common_prefix: keeps every heading below the common path when merging deeper sections" do
+    chunks = merge_chunk("## A\n\n### B\n\n#### X\n\nX body.\n\n### C\n\nC body.\n", merge_policy: :common_prefix)
 
     assert_equal [ [ "Doc", "A" ] ], chunks.map(&:heading_path)
     assert_equal "### B\n\n#### X\n\nX body.\n\n### C\n\nC body.", chunks.first.content
   end
 
-  test "never merges across top-level sections" do
-    chunks = merge_chunk("## A\n\nShort a.\n\n## B\n\nShort b.\n")
+  test "none: never merges" do
+    chunks = merge_chunk("## Parent\n\n#{paragraph(1)}\n\n### Child\n\nShort child.\n", merge_policy: :none)
 
-    assert_equal [ [ "Doc", "A" ], [ "Doc", "B" ] ], chunks.map(&:heading_path)
-    assert_equal [ "Short a.", "Short b." ], chunks.map(&:content)
+    assert_equal [ [ "Doc", "Parent" ], [ "Doc", "Parent", "Child" ] ], chunks.map(&:heading_path)
   end
 
-  test "never merges content that comes before the first heading" do
-    chunks = merge_chunk("Intro.\n\n## A\n\nShort a.\n")
+  test "no policy merges across top-level sections" do
+    %i[within_section common_prefix].each do |policy|
+      chunks = merge_chunk("## A\n\nShort a.\n\n## B\n\nShort b.\n", merge_policy: policy)
 
-    assert_equal [ [ "Doc" ], [ "Doc", "A" ] ], chunks.map(&:heading_path)
+      assert_equal [ [ "Doc", "A" ], [ "Doc", "B" ] ], chunks.map(&:heading_path), policy
+    end
+  end
+
+  test "no policy merges content that comes before the first heading" do
+    %i[within_section common_prefix].each do |policy|
+      chunks = merge_chunk("#{paragraph(1)}\n\n## A\n\nShort a.\n", merge_policy: policy)
+
+      assert_equal [ [ "Doc" ], [ "Doc", "A" ] ], chunks.map(&:heading_path), policy
+    end
   end
 
   test "a tiny section stays alone when merging would exceed max_tokens" do
     big = (1..3).map { |i| paragraph(i) }.join("\n\n")
-    chunks = merge_chunk("## A\n\n### Big\n\n#{big}\n\n### Tiny\n\nShort tiny body.\n")
+    chunks = merge_chunk("## A\n\n#{big}\n\n### Tiny\n\nShort tiny body here.\n")
 
-    assert_equal [ [ "Doc", "A", "Big" ], [ "Doc", "A", "Tiny" ] ], chunks.map(&:heading_path)
+    assert_equal [ [ "Doc", "A" ], [ "Doc", "A", "Tiny" ] ], chunks.map(&:heading_path)
   end
 
   test "strips Hugo shortcode tags but keeps the text they wrap" do
