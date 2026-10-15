@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker inspect citewise-rails-app-1 --format 'created={{.Created}} image={{.Config.Image}} cmd={{.Config.Cmd}} *)",
+      "Bash(brew list *)"
+    ]
+  }
+}
