@@ -2,8 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(docker inspect citewise-rails-app-1 --format 'created={{.Created}} image={{.Config.Image}} cmd={{.Config.Cmd}} *)",
-      "Bash(brew list *)"
+      "Bash(brew list *)",
+      "Bash(bin/rails db:migrate)",
+      "Bash(bin/rails test *)",
+      "Bash(bin/rubocop app/models test/models db/migrate/20261015160100_create_chunks.rb)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Add chunks table and model *)"
     ],
-    "deny": ["Edit(.devcontainer/**)"]
+    "deny": [
+      "Edit(.devcontainer/**)"
+    ]
   }
 }

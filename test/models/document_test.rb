@@ -31,6 +31,15 @@ class DocumentTest < ActiveSupport::TestCase
     assert document.file.attached?
   end
 
+  test "has many chunks and deletes them with the document" do
+    document = documents(:handbook)
+    assert_equal [ chunks(:intro), chunks(:leave) ], document.chunks.order(:position).to_a
+
+    assert_difference -> { Chunk.count }, -2 do
+      document.destroy
+    end
+  end
+
   test "validates source_uri uniqueness per source_type" do
     duplicate = Document.new(title: "Copy", source_type: :handbook, source_uri: "handbooks/employee.md")
     assert_not duplicate.valid?
