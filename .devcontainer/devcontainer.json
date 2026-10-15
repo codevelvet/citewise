@@ -21,15 +21,12 @@
 
   "customizations": {
     "vscode": {
-      "extensions": ["anthropic.claude-code"]
+      "extensions": ["anthropic.claude-code", "Shopify.ruby-lsp"]
     }
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   "forwardPorts": [3000, 5432],
-
-  // Configure tool-specific properties.
-  // "customizations": {},
 
   // Uncomment to connect as root instead. More info: https://containers.dev/implementors/json_reference/#remoteUser.
   // "remoteUser": "root",
@@ -40,7 +37,7 @@
 
 
   // Use 'postCreateCommand' to run commands after the container is created.
-  "postCreateCommand": "bin/setup --skip-server"
+  "postCreateCommand": "bin/setup --skip-server",
 
   // Tripwire to warn about VSCode setting reset for ssh forwarding -> none -> global
   "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container' || true"
