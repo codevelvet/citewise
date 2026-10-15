@@ -11,19 +11,25 @@ module Chunking
     # Never split, and never used as overlap.
     ATOMIC_TYPES = %i[code_block table].freeze
     SENTENCE_BOUNDARY = /(?<=[.!?])\s+/
+    # Hugo shortcode tags such as {{% note %}}, {{< figure src="x" >}}, and {{% /note %}}.
+    SHORTCODE = /\{\{[<%].*?[%>]\}\}/m
+    HTML_TAG = /<[^>]*>/
 
     Section = Data.define(:heading_path, :headings, :blocks)
     # items are the units a block may be split into: list items for a list, else the whole block.
     Block = Data.define(:type, :text, :items)
     Piece = Data.define(:heading_path, :headings, :text)
 
-    def initialize(target_tokens: 400, max_tokens: 512, overlap_tokens: 50, token_counter: TokenCounter::Approximate.new)
-      unless 0 < target_tokens && target_tokens <= max_tokens && 0 <= overlap_tokens && overlap_tokens < target_tokens
-        raise ArgumentError, "expected 0 < target_tokens <= max_tokens and 0 <= overlap_tokens < target_tokens"
+    def initialize(target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50,
+                   token_counter: TokenCounter::Approximate.new, logger: Rails.logger)
+      unless 0 <= min_tokens && min_tokens <= target_tokens && 0 < target_tokens && target_tokens <= max_tokens &&
+             0 <= overlap_tokens && overlap_tokens < target_tokens
+        raise ArgumentError, "expected 0 <= min_tokens <= target_tokens <= max_tokens, 0 < target_tokens, and 0 <= overlap_tokens < target_tokens"
       end
 
-      @target_tokens, @max_tokens, @overlap_tokens = target_tokens, max_tokens, overlap_tokens
+      @target_tokens, @max_tokens, @min_tokens, @overlap_tokens = target_tokens, max_tokens, min_tokens, overlap_tokens
       @token_counter = token_counter
+      @logger = logger
     end
 
     def call(markdown, title:)
@@ -32,11 +38,11 @@ module Chunking
       title = front_matter_title(document, lines) || title
 
       pieces = sections(document, lines, title).flat_map { |section| split(section) }
-      pieces.each_with_index.map { |piece, position| build_chunk(piece, position) }
+      merge(pieces).each_with_index.map { |piece, position| build_chunk(piece, position) }
     end
 
     private
-      attr_reader :target_tokens, :max_tokens, :overlap_tokens, :token_counter
+      attr_reader :target_tokens, :max_tokens, :min_tokens, :overlap_tokens, :token_counter, :logger
 
       def front_matter_title(document, lines)
         node = document.first_child
@@ -51,23 +57,44 @@ module Chunking
       def sections(document, lines, title)
         headings = []
         sections = [ Section.new(heading_path: [ title ], headings: [], blocks: []) ]
+        skipped_diagrams = 0
 
         document.each do |node|
           case node.type
-          when :frontmatter
+          when :frontmatter, :thematic_break
             next
           when :heading
             headings.pop while headings.any? && headings.last[:level] >= node.header_level
             headings.push(level: node.header_level, text: plain_text(node), source: source(node, lines))
             sections << Section.new(heading_path: [ title, *headings.pluck(:text) ], headings: headings.pluck(:source), blocks: [])
           else
-            text = source(node, lines)
-            items = node.type == :list ? node.map { |item| source(item, lines) } : [ text ]
-            sections.last.blocks << Block.new(type: node.type, text: text, items: items) if text.present?
+            # Diagram source is mostly syntax: it retrieves poorly and adds keyword-search noise.
+            if node.type == :code_block && node.fence_info.split.first == "mermaid"
+              skipped_diagrams += 1
+            elsif (block = block(node, lines))
+              sections.last.blocks << block
+            end
           end
         end
 
+        logger.info("Skipped #{skipped_diagrams} mermaid code block(s) in #{title.inspect}") if skipped_diagrams.positive?
         sections.reject { |section| section.blocks.empty? }
+      end
+
+      # nil for a block with no real content, such as an HTML wrapper <div> or a lone shortcode.
+      def block(node, lines)
+        text = clean(node, source(node, lines))
+        return if text.blank? || (node.type == :html_block && text.gsub(HTML_TAG, "").blank?)
+
+        items = node.type == :list ? node.map { |item| clean(item, source(item, lines)) }.compact_blank : [ text ]
+        Block.new(type: node.type, text: text, items: items)
+      end
+
+      # Removes Hugo shortcode tags, keeping any text they wrap.
+      def clean(node, text)
+        return text if node.type == :code_block || !text.match?(SHORTCODE)
+
+        text.gsub(SHORTCODE, "").gsub(/^[ \t]+$/, "").gsub(/\n{3,}/, "\n\n").strip
       end
 
       # Sections over max_tokens are packed into pieces of about target_tokens,
@@ -81,15 +108,21 @@ module Chunking
         carry, current = [], []
         units(section).each do |unit|
           if current.any? && count(join(carry + current + [ unit ])) > target_tokens
-            packs << carry + current
+            packs << [ carry, current ]
             carry, current = overlap(current.last), []
           end
           carry = [] if current.empty? && count(join(carry + [ unit ])) > max_tokens
           current << unit
         end
-        packs << carry + current
+        packs << [ carry, current ]
 
-        packs.map { |units| piece(section, join(units)) }
+        # Fold a tiny last pack back into the one before, without its overlap.
+        if packs.size > 1 && count(join(current)) < min_tokens
+          (previous_carry, previous), _last = packs.last(2)
+          packs[-2..] = [ [ previous_carry, previous + current ] ] if count(join(previous_carry + previous + current)) <= max_tokens
+        end
+
+        packs.map { |carry, units| piece(section, join(carry + units)) }
       end
 
       def units(section)
@@ -110,6 +143,35 @@ module Chunking
 
         text = sentences.join(" ")
         [ Block.new(type: :paragraph, text: text, items: [ text ]) ]
+      end
+
+      # A piece under min_tokens joins its previous neighbor, or else its next one,
+      # when the result fits in max_tokens and the two share a top-level section.
+      # Otherwise it stays small: a precise heading path retrieves better than a vague one.
+      def merge(pieces)
+        pieces.each_with_object([]) do |piece, merged|
+          previous = merged.last
+          combined = combine(previous, piece) if previous && (tiny?(previous) || tiny?(piece))
+
+          if combined && combined.heading_path.size >= 2 && count(combined.text) <= max_tokens
+            merged[-1] = combined
+          else
+            merged << piece
+          end
+        end
+      end
+
+      # The combined piece sits at the common heading path; headings below it
+      # move into the content so the merged-in subsections stay labeled.
+      def combine(first, second)
+        path = first.heading_path.zip(second.heading_path).take_while { |a, b| a == b }.map(&:first)
+        depth = path.size - 1
+        text = [ first, second ].map { |piece| [ *piece.headings.drop(depth), piece.text ].join("\n\n") }.join("\n\n")
+        Piece.new(heading_path: path, headings: first.headings.first(depth), text: text)
+      end
+
+      def tiny?(piece)
+        count(piece.text) < min_tokens
       end
 
       def piece(section, text)

@@ -163,6 +163,136 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_operator chunks.last.token_count, :>, 50
   end
 
+  test "folds a tiny tail of a split section back into the piece before it" do
+    paragraphs = (1..4).map { |i| paragraph(i) }
+    chunks = small_chunk("## Section\n\n#{paragraphs.join("\n\n")}\n\nTiny tail.\n", min_tokens: 10, target_tokens: 35)
+
+    assert_equal [ paragraphs.first(2).join("\n\n"), "P2 s3 alpha beta gamma.\n\n#{paragraphs[2]}\n\n#{paragraphs[3]}\n\nTiny tail." ], chunks.map(&:content)
+  end
+
+  test "merges tiny sibling sections under their common heading" do
+    chunks = merge_chunk(<<~MD)
+      ## Time off
+
+      ### One
+
+      Short one.
+
+      ### Two
+
+      Short two.
+    MD
+
+    assert_equal [ [ "Doc", "Time off" ] ], chunks.map(&:heading_path)
+    assert_equal "### One\n\nShort one.\n\n### Two\n\nShort two.", chunks.first.content
+  end
+
+  test "a tiny parent intro merges forward into its first subsection" do
+    chunks = merge_chunk("## Parent\n\nIntro.\n\n### Child\n\nChild body.\n")
+
+    assert_equal [ [ "Doc", "Parent" ] ], chunks.map(&:heading_path)
+    assert_equal "Intro.\n\n### Child\n\nChild body.", chunks.first.content
+  end
+
+  test "keeps every heading below the common path when merging deeper sections" do
+    chunks = merge_chunk("## A\n\n### B\n\n#### X\n\nX body.\n\n### C\n\nC body.\n")
+
+    assert_equal [ [ "Doc", "A" ] ], chunks.map(&:heading_path)
+    assert_equal "### B\n\n#### X\n\nX body.\n\n### C\n\nC body.", chunks.first.content
+  end
+
+  test "never merges across top-level sections" do
+    chunks = merge_chunk("## A\n\nShort a.\n\n## B\n\nShort b.\n")
+
+    assert_equal [ [ "Doc", "A" ], [ "Doc", "B" ] ], chunks.map(&:heading_path)
+    assert_equal [ "Short a.", "Short b." ], chunks.map(&:content)
+  end
+
+  test "never merges content that comes before the first heading" do
+    chunks = merge_chunk("Intro.\n\n## A\n\nShort a.\n")
+
+    assert_equal [ [ "Doc" ], [ "Doc", "A" ] ], chunks.map(&:heading_path)
+  end
+
+  test "a tiny section stays alone when merging would exceed max_tokens" do
+    big = (1..3).map { |i| paragraph(i) }.join("\n\n")
+    chunks = merge_chunk("## A\n\n### Big\n\n#{big}\n\n### Tiny\n\nShort tiny body.\n")
+
+    assert_equal [ [ "Doc", "A", "Big" ], [ "Doc", "A", "Tiny" ] ], chunks.map(&:heading_path)
+  end
+
+  test "strips Hugo shortcode tags but keeps the text they wrap" do
+    chunks = chunk(<<~MD)
+      ## Section
+
+      {{% note %}}
+      Note text.
+      {{% /note %}}
+
+      After the note.
+
+      {{% include "includes/take-gitlab-for-a-spin.md" %}}
+
+      {{< figure src="diagram.png" >}}
+    MD
+
+    assert_equal "Note text.\n\nAfter the note.", chunks.first.content
+  end
+
+  test "a section of only shortcodes is skipped" do
+    assert_empty chunk("## Section\n\n{{% include \"x.md\" %}}\n")
+  end
+
+  test "leaves shortcodes inside code blocks alone" do
+    code = "```\n{{% note %}}\n```"
+
+    assert_equal code, chunk("## Section\n\n#{code}\n").first.content
+  end
+
+  test "drops HTML blocks with no text and thematic breaks, keeps HTML with text" do
+    chunks = chunk(<<~MD)
+      ## Section
+
+      <div style="overflow-x: auto">
+      <div style="width: 1800px;">
+
+      Body.
+
+      </div>
+      </div>
+
+      ---
+
+      <details><summary>More</summary>
+    MD
+
+    assert_equal "Body.\n\n<details><summary>More</summary>", chunks.first.content
+  end
+
+  test "drops mermaid diagrams and logs how many were skipped" do
+    log = StringIO.new
+    chunks = chunk(<<~MD, logger: Logger.new(log))
+      ## Roles
+
+      Body.
+
+      ```mermaid
+      graph LR;
+      ```
+
+      ```ruby
+      puts 1
+      ```
+
+      ``` mermaid
+      graph TD;
+      ```
+    MD
+
+    assert_equal "Body.\n\n```ruby\nputs 1\n```", chunks.first.content
+    assert_includes log.string, "Skipped 2 mermaid code block(s)"
+  end
+
   private
     # Counts words, so sizes in these tests are easy to reason about.
     class WordCounter
@@ -171,12 +301,17 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
       end
     end
 
-    def chunk(markdown, title: "Doc", **options)
-      Chunking::MarkdownChunker.new(**options).call(markdown, title: title)
+    # Merging is off unless a test asks for it, so tiny inline sections stay separate.
+    def chunk(markdown, title: "Doc", min_tokens: 0, **options)
+      Chunking::MarkdownChunker.new(min_tokens: min_tokens, **options).call(markdown, title: title)
     end
 
     def small_chunk(markdown, target_tokens: 40, max_tokens: 50, overlap_tokens: 6, **options)
       chunk(markdown, target_tokens: target_tokens, max_tokens: max_tokens, overlap_tokens: overlap_tokens, token_counter: WordCounter.new, **options)
+    end
+
+    def merge_chunk(markdown, **options)
+      small_chunk(markdown, min_tokens: 10, **options)
     end
 
     # Fifteen words in three sentences.
