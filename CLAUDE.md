@@ -60,10 +60,7 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
+# Project
 Rails 8.1 app (Ruby 4.0.7) on Postgres 17 + pgvector. Hotwire, Tailwind, importmap, Solid Cache/Queue/Cable, Minitest.
 
 ## Development environment
@@ -95,6 +92,27 @@ devcontainer exec --workspace-folder . bin/dev                    # run the app 
 - Local secrets go in `.env` at the repo root (git- and docker-ignored; template in `.env.example`). It's loaded via `env_file` in `compose.yaml`, only when the container is created, so rebuild after editing.
 - Never commit secrets or add them to `devcontainer.json` `containerEnv`, which would also override `.env`.
 - `.dockerignore` keeps `.env*` and `config/master.key` out of the production image (`Dockerfile` does `COPY . .`).
+
+## API spend
+
+The Anthropic API credit for this project is capped at $20. Claude Code
+itself runs on a separate plan; these rules cover calls the app makes.
+
+- Never make real Anthropic or Voyage API calls without asking me first.
+  That includes rake tasks, `bin/rails runner`, console sessions, and
+  scripts. Dry runs are fine.
+- Tests must never touch the network. WebMock blocks real requests; use
+  fakes or VCR cassettes. Never re-record a cassette without asking.
+- The Claude model comes from app configuration (Haiku by default). Never
+  hard-code model names or switch to a larger model.
+- Keep prompts lean: send at most 8 chunks as context and always set
+  `max_tokens` explicitly.
+- Code that calls Claude repeatedly with the same document must use
+  prompt caching. Offline work, like generating chunk context during
+  ingestion, should use the Message Batches API.
+- Log input, output, and cache token counts for every Claude call.
+- Before any operation that would make more than about 10 API calls,
+  print an estimate of calls and tokens and stop for my confirmation.
 
 ## LLM
 
