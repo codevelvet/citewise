@@ -22,6 +22,8 @@ gem "jbuilder"
 gem "neighbor"
 # One API for LLM providers [https://rubyllm.com]
 gem "ruby_llm"
+# CommonMark + GFM parser for structure-aware chunking [https://github.com/gjtorikian/commonmarker]
+gem "commonmarker"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"
