@@ -102,24 +102,24 @@ module Chunking
       # starts with the last sentences of the one before it.
       def split(section)
         text = join(section.blocks)
-        return [ piece(section, text) ] if count(text) <= max_tokens
+        return [ piece(section, text) ] if tokens(text) <= max_tokens
 
         packs = []
         carry, current = [], []
         units(section).each do |unit|
-          if current.any? && count(join(carry + current + [ unit ])) > target_tokens
+          if current.any? && tokens(join(carry + current + [ unit ])) > target_tokens
             packs << [ carry, current ]
             carry, current = overlap(current.last), []
           end
-          carry = [] if current.empty? && count(join(carry + [ unit ])) > max_tokens
+          carry = [] if current.empty? && tokens(join(carry + [ unit ])) > max_tokens
           current << unit
         end
         packs << [ carry, current ]
 
         # Fold a tiny last pack back into the one before, without its overlap.
-        if packs.size > 1 && count(join(current)) < min_tokens
+        if packs.size > 1 && tokens(join(current)) < min_tokens
           (previous_carry, previous), _last = packs.last(2)
-          packs[-2..] = [ [ previous_carry, previous + current ] ] if count(join(previous_carry + previous + current)) <= max_tokens
+          packs[-2..] = [ [ previous_carry, previous + current ] ] if tokens(join(previous_carry + previous + current)) <= max_tokens
         end
 
         packs.map { |carry, units| piece(section, join(carry + units)) }
@@ -136,7 +136,7 @@ module Chunking
 
         sentences = []
         unit.text.split(SENTENCE_BOUNDARY).reverse_each do |sentence|
-          break if count([ sentence, *sentences ].join(" ")) > overlap_tokens
+          break if tokens([ sentence, *sentences ].join(" ")) > overlap_tokens
           sentences.unshift(sentence)
         end
         return [] if sentences.empty?
@@ -153,7 +153,7 @@ module Chunking
           previous = merged.last
           combined = combine(previous, piece) if previous && (tiny?(previous) || tiny?(piece))
 
-          if combined && combined.heading_path.size >= 2 && count(combined.text) <= max_tokens
+          if combined && combined.heading_path.size >= 2 && tokens(combined.text) <= max_tokens
             merged[-1] = combined
           else
             merged << piece
@@ -171,7 +171,7 @@ module Chunking
       end
 
       def tiny?(piece)
-        count(piece.text) < min_tokens
+        tokens(piece.text) < min_tokens
       end
 
       def piece(section, text)
@@ -182,7 +182,7 @@ module Chunking
         blocks.map(&:text).join("\n\n")
       end
 
-      def count(text)
+      def tokens(text)
         token_counter.count(text)
       end
 
@@ -207,7 +207,7 @@ module Chunking
           content: content,
           heading_path: piece.heading_path,
           position: position,
-          token_count: count(content),
+          token_count: tokens(content),
           content_hash: Digest::SHA256.hexdigest(content)
         )
       end
