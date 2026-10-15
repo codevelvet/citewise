@@ -75,7 +75,7 @@ devcontainer up --workspace-folder .                              # build/start;
 devcontainer up --workspace-folder . --remove-existing-container  # full rebuild (Dockerfile/features/.env changes)
 devcontainer exec --workspace-folder . bash                       # shell in /workspaces/citewise
 devcontainer exec --workspace-folder . bin/rails test             # one-off command
-devcontainer exec --workspace-folder . bin/dev                    # run the app (Procfile.dev: rails server + tailwindcss:watch)
+devcontainer exec --workspace-folder . bin/dev                    # run the app (Procfile.dev: rails server + tailwindcss:watch + Solid Queue worker)
 ```
 
 - Plain `docker compose -f .devcontainer/compose.yaml up` skips `devcontainer.json` (features, `postCreateCommand`), so gems aren't installed and Ruby isn't on PATH for `docker exec`. Use the CLI.

@@ -28,6 +28,9 @@ Rails.application.configure do
   # Disable request forgery protection in test environment.
   config.action_controller.allow_forgery_protection = false
 
+  # Jobs use the test adapter; this lets tests that need it enqueue through Solid Queue directly.
+  config.solid_queue.connects_to = { database: { writing: :queue } }
+
   # Store uploaded files on the local file system in a temporary directory.
   config.active_storage.service = :test
 

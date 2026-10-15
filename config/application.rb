@@ -23,5 +23,9 @@ module Citewise
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # Settings for Chunking::MarkdownChunker during ingestion. Changing them makes
+    # existing documents Document.outdated; run bin/rails citewise:reingest to re-chunk.
+    config.x.chunker = { target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50, merge_policy: :within_section }
   end
 end

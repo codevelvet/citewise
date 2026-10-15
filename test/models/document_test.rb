@@ -41,19 +41,28 @@ class DocumentTest < ActiveSupport::TestCase
   end
 
   test "validates source_uri uniqueness per source_type" do
-    duplicate = Document.new(title: "Copy", source_type: :handbook, source_uri: "handbooks/employee.md")
+    duplicate = Document.new(title: "Copy", source_type: :filesystem, source_uri: "handbooks/employee.md")
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:source_uri], "has already been taken"
   end
 
   test "enforces source_uri uniqueness per source_type in the database" do
     assert_raises ActiveRecord::RecordNotUnique do
-      Document.insert_all!([ { title: "Copy", source_type: "handbook", source_uri: "handbooks/employee.md" } ])
+      Document.insert_all!([ { title: "Copy", source_type: "filesystem", source_uri: "handbooks/employee.md" } ])
     end
   end
 
   test "allows the same source_uri under another source_type" do
     assert Document.create(title: "Copy", source_type: :url, source_uri: "handbooks/employee.md").persisted?
+  end
+
+  test "outdated returns documents with an old or missing chunker fingerprint" do
+    current = Document.create!(title: "Current", source_type: :upload, chunker_fingerprint: Ingestion::DocumentIngester.new.fingerprint)
+    old = Document.create!(title: "Old", source_type: :upload, chunker_fingerprint: "0:000000000000")
+
+    assert_includes Document.outdated, old
+    assert_includes Document.outdated, documents(:handbook)
+    assert_not_includes Document.outdated, current
   end
 
   test "allows many documents without a source_uri" do
