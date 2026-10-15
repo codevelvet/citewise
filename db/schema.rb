@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_15_160100) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_15_160200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -43,6 +43,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_160100) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "chunk_embeddings", force: :cascade do |t|
+    t.bigint "chunk_id", null: false
+    t.string "model", null: false
+    t.string "strategy", null: false
+    t.integer "dimensions", null: false
+    t.vector "embedding", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index "((embedding)::vector(1024)) vector_cosine_ops", name: "index_chunk_embeddings_on_voyage_4_lite_raw_embedding", where: "(((model)::text = 'voyage-4-lite'::text) AND ((strategy)::text = 'raw'::text))", using: :hnsw
+    t.index ["chunk_id", "model", "strategy"], name: "index_chunk_embeddings_on_chunk_id_and_model_and_strategy", unique: true
+    t.check_constraint "vector_dims(embedding) = dimensions", name: "chunk_embeddings_embedding_matches_dimensions"
+  end
+
   create_table "chunks", force: :cascade do |t|
     t.bigint "document_id", null: false
     t.integer "position", null: false
@@ -71,5 +84,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_15_160100) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "chunk_embeddings", "chunks", on_delete: :cascade
   add_foreign_key "chunks", "documents", on_delete: :cascade
 end
