@@ -41,14 +41,14 @@ class DocumentTest < ActiveSupport::TestCase
   end
 
   test "validates source_uri uniqueness per source_type" do
-    duplicate = Document.new(title: "Copy", source_type: :handbook, source_uri: "handbooks/employee.md")
+    duplicate = Document.new(title: "Copy", source_type: :filesystem, source_uri: "handbooks/employee.md")
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:source_uri], "has already been taken"
   end
 
   test "enforces source_uri uniqueness per source_type in the database" do
     assert_raises ActiveRecord::RecordNotUnique do
-      Document.insert_all!([ { title: "Copy", source_type: "handbook", source_uri: "handbooks/employee.md" } ])
+      Document.insert_all!([ { title: "Copy", source_type: "filesystem", source_uri: "handbooks/employee.md" } ])
     end
   end
 
