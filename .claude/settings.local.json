@@ -10,7 +10,8 @@
     "ask": [
       "Bash(bin/rails runner:*)",
       "Bash(bin/rails console:*)",
-      "Bash(bin/rails citewise:*)"
+      "Bash(bin/rails citewise:*)",
+      "Edit(.github/**)"
     ],
     "deny": [
       "Edit(.devcontainer/**)"
