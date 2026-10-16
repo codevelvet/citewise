@@ -25,14 +25,15 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     assert_equal 2, answerer.instance_variable_get(:@client).max_retries
   end
 
-  test "answers from search results with native citations mapped to chunk ids, logging token usage" do
+  test "answers from search results with native citations mapped to chunk passages, logging token usage" do
     # The cassette matches on method and URI (VCR's default), not the body, so
     # rewording SYSTEM_PROMPT doesn't need a new recording. The assertions below
     # check the request's structure and refer to the prompt by constant. Re-record
     # only when the structure changes or the recorded answer misleads.
+    question = "How many unused leave days carry over?"
     log = StringIO.new
     answer = with_logger(log) do
-      VCR.use_cassette("anthropic_answerer") { @answerer.answer(QUESTION, @chunks) }
+      VCR.use_cassette("anthropic_answerer") { @answerer.answer(question, [ chunks(:leave_details), chunks(:intro) ]) }
     end
 
     assert_requested :post, ENDPOINT, body: hash_including(
@@ -40,20 +41,22 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
       max_tokens: 1024,
       system: [ { type: "text", text: Answering::Answerer::SYSTEM_PROMPT, cache_control: { type: "ephemeral" } } ],
       messages: [ { role: "user", content: [
-        search_result(chunks(:leave), "Employee Handbook > Benefits > Paid leave"),
+        search_result(chunks(:leave_details), "Leave Policy > Benefits", LEAVE_DETAILS_PARAGRAPHS),
         search_result(chunks(:intro), "Employee Handbook > Introduction"),
-        { type: "text", text: QUESTION }
+        { type: "text", text: question }
       ] } ]
     )
-    assert_match(/20 days/, answer.text)
+    assert_match(/\b5\b/, answer.text)
     assert_no_match(/search result|excerpt/i, answer.text)
     assert_equal "claude-haiku-4-5", answer.model
     assert answer.citations.any?
     answer.citations.each do |citation|
-      assert_equal chunks(:leave).id, citation[:chunk_id]
-      assert_includes chunks(:leave).content, citation[:cited_text].strip
+      assert_equal chunks(:leave_details).id, citation[:chunk_id]
+      assert_equal LEAVE_DETAILS_PARAGRAPHS[citation[:block_start]...citation[:block_end]].join("\n\n"), citation[:cited_text]
       assert_operator answer.text[citation[:answer_start]...citation[:answer_end]].length, :>, 0
     end
+    # The recording cites only the carry-over passage, not the whole chunk.
+    assert answer.citations.any? { it[:block_end] - it[:block_start] < LEAVE_DETAILS_PARAGRAPHS.size }
     assert_equal %i[cache_read_tokens cache_write_tokens input_tokens output_tokens], answer.usage.keys.sort
     assert answer.usage[:input_tokens].positive?
     assert_match(/Claude answer model=claude-haiku-4-5 input_tokens=\d+ output_tokens=\d+ cache_read_tokens=\d+ cache_write_tokens=\d+ citations=\d+ dropped=0/, log.string)
