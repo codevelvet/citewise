@@ -8,3 +8,31 @@ vulnerabilities:
       (not affected) through Bundler per Gemfile.lock. No Ruby 4.0.x
       release bundles json >= 2.19.2 yet (checked 2026-10-16).
     expired_at: 2026-11-15
+  - id: CVE-2026-78669
+    paths:
+      - "usr/local/bundle/ruby/4.0.0/gems/thruster-0.1.27-x86_64-linux/exe/x86_64-linux/thrust"
+    statement: >-
+      HTTP/2 SETTINGS frame DoS in golang.org/x/net 0.59.0 and Go stdlib
+      1.27.1, compiled into thruster 0.1.27's thrust binary. Fixed on
+      thruster main (Go 1.27.2, x/net 0.61.0) but unreleased; no thruster
+      release at least 14 days old includes the fix (checked 2026-10-16).
+      Remove after updating thruster.
+    expired_at: 2026-11-15
+  - id: CVE-2026-78667
+    paths:
+      - "usr/local/bundle/ruby/4.0.0/gems/thruster-0.1.27-x86_64-linux/exe/x86_64-linux/thrust"
+    statement: >-
+      HTTP Range header DoS in Go stdlib 1.27.1, compiled into thruster
+      0.1.27's thrust binary. Fixed on thruster main (Go 1.27.2) but
+      unreleased; no thruster release at least 14 days old includes the
+      fix (checked 2026-10-16). Remove after updating thruster.
+    expired_at: 2026-11-15
+  - id: CVE-2026-97031
+    paths:
+      - "usr/local/bundle/ruby/4.0.0/gems/thruster-0.1.27-x86_64-linux/exe/x86_64-linux/thrust"
+    statement: >-
+      crypto/tls ECH extension DoS in Go stdlib 1.27.1, compiled into
+      thruster 0.1.27's thrust binary. Fixed on thruster main (Go 1.27.2)
+      but unreleased; no thruster release at least 14 days old includes
+      the fix (checked 2026-10-16). Remove after updating thruster.
+    expired_at: 2026-11-15
