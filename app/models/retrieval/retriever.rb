@@ -42,11 +42,10 @@ module Retrieval
 
     private
       def distance_to(vector)
-        dimensions = Integer(embedder.dimensions)
         query = Arel::Nodes::BindParam.new(ActiveRecord::Relation::QueryAttribute.new("query_embedding", vector, ChunkEmbedding.type_for_attribute(:embedding)))
         Arel::Nodes::InfixOperation.new("<=>",
-          Arel.sql("chunk_embeddings.embedding::vector(#{dimensions})"),
-          Arel::Nodes::InfixOperation.new("::", query, Arel.sql("vector(#{dimensions})")))
+          Arel.sql("chunk_embeddings.embedding::vector(#{embedder.dimensions.to_i})"),
+          Arel::Nodes::InfixOperation.new("::", query, Arel.sql("vector(#{embedder.dimensions.to_i})")))
       end
   end
 end
