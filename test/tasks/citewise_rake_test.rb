@@ -133,6 +133,14 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_includes output, "The documents don't cover that.\n\nCitations\n  (none)\n"
   end
 
+  test "ask without embeddings prints the fixed answer and a hint, without asking Claude" do
+    answerer = FakeAnswerer.new
+    output = with_fake_embedder { with_fake_answerer(answerer) { ask("How much paid leave do I get?") } }
+
+    assert_empty answerer.calls
+    assert_equal "#{Answering::AskService::NO_SOURCES_ANSWER}\n\nNo embeddings found for voyage-4-lite/raw. Run citewise:embed.\n", output
+  end
+
   test "ask rejoins a question that rake split at its commas" do
     answerer = FakeAnswerer.new
     with_question_embedder { |embedder| with_fake_embedder(embedder) { with_fake_answerer(answerer) { ask("How much leave", "roughly?") } } }

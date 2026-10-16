@@ -58,6 +58,11 @@ namespace :citewise do
     end
 
     puts question.answer, ""
+    if question.retrieval.empty?
+      puts "No embeddings found for #{Rails.configuration.x.embeddings[:model]}/#{Rails.configuration.x.retrieval[:strategy]}. Run citewise:embed."
+      next
+    end
+
     puts "Citations"
     puts "  (none)" if question.citations.empty?
     question.citations.each.with_index(1) do |citation, number|

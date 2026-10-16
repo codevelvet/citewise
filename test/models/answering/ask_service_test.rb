@@ -61,6 +61,23 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal [], question.citations
   end
 
+  test "with nothing retrieved, Claude isn't asked and the question gets a fixed answer" do
+    ChunkEmbedding.delete_all
+    answerer = FakeAnswerer.new
+    log = StringIO.new
+
+    question = with_logger(log) { ask(answerer) }
+
+    assert_empty answerer.calls
+    assert question.answered?
+    assert_equal Answering::AskService::NO_SOURCES_ANSWER, question.answer
+    assert_nil question.model
+    assert_equal [ [], [] ], [ question.retrieval, question.citations ]
+    assert_equal [ 0, 0, 0, 0 ], question.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens).values
+    assert_nil question.answer_ms
+    assert_match(/Question #{question.id} retrieved no chunks: no embeddings for voyage-4-lite\/raw/, log.string)
+  end
+
   test "an embedding failure marks the question failed and re-raises" do
     [ Embeddings::Embedder::TransientError.new("Voyage 429: Slow down"), Embeddings::Embedder::PermanentError.new("Voyage 401: Bad key") ].each do |failure|
       @embedder.define_singleton_method(:embed_query) { |_text| raise failure }
@@ -98,6 +115,14 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
   private
     def ask(answerer = FakeAnswerer.new)
       Answering::AskService.call(QUESTION, retriever: Retrieval::Retriever.new(embedder: @embedder), answerer: answerer)
+    end
+
+    def with_logger(io)
+      original = Rails.logger
+      Rails.logger = ActiveSupport::Logger.new(io)
+      yield
+    ensure
+      Rails.logger = original
     end
 
     def embed(chunk, vector)
