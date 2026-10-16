@@ -5,7 +5,7 @@ class ChunkEmbedding < ApplicationRecord
 
   enum :strategy, { raw: "raw", contextual: "contextual" }, validate: true
 
-  validates :model, :embedding, presence: true
+  validates :model, :embedding, :input_hash, presence: true
   validates :model, uniqueness: { scope: [ :chunk_id, :strategy ] }
   validates :dimensions, numericality: { only_integer: true, greater_than: 0 }
   validate :embedding_matches_dimensions

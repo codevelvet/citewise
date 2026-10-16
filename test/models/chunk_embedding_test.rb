@@ -5,12 +5,13 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
     assert build_embedding.valid?
   end
 
-  test "requires a chunk, model, and embedding" do
+  test "requires a chunk, model, embedding, and input_hash" do
     embedding = ChunkEmbedding.new(strategy: :raw, dimensions: 1024)
     assert_not embedding.valid?
     assert_includes embedding.errors[:chunk], "must exist"
     assert_includes embedding.errors[:model], "can't be blank"
     assert_includes embedding.errors[:embedding], "can't be blank"
+    assert_includes embedding.errors[:input_hash], "can't be blank"
   end
 
   test "rejects an unknown strategy" do
@@ -33,7 +34,7 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
 
   test "enforces embedding size matching dimensions in the database" do
     error = assert_raises ActiveRecord::StatementInvalid do
-      ChunkEmbedding.insert_all!([ { chunk_id: chunks(:intro).id, model: "other-model", strategy: "raw", dimensions: 4, embedding: [ 1, 0, 0 ] } ])
+      ChunkEmbedding.insert_all!([ { chunk_id: chunks(:intro).id, model: "other-model", strategy: "raw", dimensions: 4, embedding: [ 1, 0, 0 ], input_hash: "abc" } ])
     end
     assert_match "chunk_embeddings_embedding_matches_dimensions", error.message
   end
@@ -57,7 +58,7 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
   test "enforces uniqueness of model and strategy per chunk in the database" do
     build_embedding.save!
     assert_raises ActiveRecord::RecordNotUnique do
-      ChunkEmbedding.insert_all!([ { chunk_id: chunks(:intro).id, model: "voyage-4-lite", strategy: "raw", dimensions: 1024, embedding: axis(0) } ])
+      ChunkEmbedding.insert_all!([ { chunk_id: chunks(:intro).id, model: "voyage-4-lite", strategy: "raw", dimensions: 1024, embedding: axis(0), input_hash: "abc" } ])
     end
   end
 
@@ -97,7 +98,7 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
 
   private
     def build_embedding(chunk: chunks(:intro), model: "voyage-4-lite", strategy: :raw, dimensions: 1024, embedding: axis(0))
-      ChunkEmbedding.new(chunk: chunk, model: model, strategy: strategy, dimensions: dimensions, embedding: embedding)
+      ChunkEmbedding.new(chunk: chunk, model: model, strategy: strategy, dimensions: dimensions, embedding: embedding, input_hash: "abc")
     end
 
     def axis(index, size: 1024)
