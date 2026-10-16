@@ -1,7 +1,8 @@
 module Answering
   # Answers with Claude's native citations. Each chunk is sent as a search-result
   # content block whose source is "chunk:<id>", so every citation Claude returns
-  # names the chunk it quotes.
+  # names the chunk it quotes. Its content is one text block per paragraph
+  # (Chunking::Paragraphs), so a citation covers only the paragraphs it uses.
   class AnthropicAnswerer < Answerer
     SOURCE = /\Achunk:(\d+)\z/
 
@@ -20,7 +21,7 @@ module Answering
         messages: [ { role: "user", content: chunks.map { search_result(it) } + [ { type: "text", text: text } ] } ]
       )
 
-      answer_text, citations, dropped = read(message, chunks.index_by(&:id))
+      answer_text, citations, dropped = read(message, chunks.index_by(&:id).transform_values { Chunking::Paragraphs.split(it.content) })
       usage = usage_of(message)
       Rails.logger.info "Claude answer model=#{model} input_tokens=#{usage[:input_tokens]} output_tokens=#{usage[:output_tokens]} " \
         "cache_read_tokens=#{usage[:cache_read_tokens]} cache_write_tokens=#{usage[:cache_write_tokens]} " \
@@ -41,14 +42,16 @@ module Answering
           type: "search_result",
           source: "chunk:#{chunk.id}",
           title: chunk.source_title,
-          content: [ { type: "text", text: chunk.content } ],
+          content: Chunking::Paragraphs.split(chunk.content).map { { type: "text", text: it } },
           citations: { enabled: true }
         }
       end
 
       # Joins the text blocks into the answer. A citation supports the text block
-      # it's attached to, so its span is that block's offsets in the answer.
-      def read(message, chunks_by_id)
+      # it's attached to, so its span is that block's offsets in the answer. Its
+      # cited_text is rebuilt from the paragraphs it cites, so it's always an
+      # exact passage of the chunk's content.
+      def read(message, paragraphs_by_chunk_id)
         answer_text = +""
         citations = []
         dropped = 0
@@ -60,11 +63,17 @@ module Answering
           answer_text << block.text
           Array(block.citations).each do |citation|
             chunk_id = citation.try(:source).to_s[SOURCE, 1]&.to_i
-            if chunk_id && chunks_by_id.key?(chunk_id)
-              citations << { chunk_id: chunk_id, cited_text: citation.cited_text, answer_start: start, answer_end: answer_text.length }
-            else
+            paragraphs = paragraphs_by_chunk_id[chunk_id]
+            block_start, block_end = citation.try(:start_block_index), citation.try(:end_block_index)
+            if paragraphs.nil?
               dropped += 1
               Rails.logger.warn "Claude citation dropped: source #{citation.try(:source).inspect} is not a retrieved chunk"
+            elsif !(0...paragraphs.size).cover?(block_start) || !(block_start + 1..paragraphs.size).cover?(block_end)
+              dropped += 1
+              Rails.logger.warn "Claude citation dropped: blocks #{block_start.inspect}...#{block_end.inspect} aren't in chunk:#{chunk_id}'s #{paragraphs.size}"
+            else
+              citations << { chunk_id: chunk_id, cited_text: paragraphs[block_start...block_end].join("\n\n"),
+                             block_start: block_start, block_end: block_end, answer_start: start, answer_end: answer_text.length }
             end
           end
         end
