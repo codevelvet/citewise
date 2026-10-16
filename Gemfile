@@ -71,4 +71,8 @@ group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
   gem "selenium-webdriver"
+  # Blocks real HTTP in tests [https://github.com/bblimke/webmock]
+  gem "webmock"
+  # Replays recorded HTTP interactions [https://github.com/vcr/vcr]
+  gem "vcr"
 end
