@@ -44,4 +44,32 @@ namespace :citewise do
     end
     puts "Enqueued #{count}"
   end
+
+  desc "Embed missing or stale chunks of ingested documents (safe to rerun: up-to-date chunks are skipped); citewise:embed[raw,dry_run] only prints counts"
+  task :embed, [ :strategy, :dry_run ] => :environment do |_task, args|
+    strategy = args[:strategy].presence || "raw"
+    abort "Only the raw strategy is implemented (got #{strategy.inspect})" unless strategy == "raw"
+
+    embedder = Embeddings::DocumentEmbedder.new
+    totals = Hash.new(0)
+    documents = Document.ingested.find_each.select do |document|
+      estimate = embedder.estimate(embedder.pending(document, strategy))
+      estimate.each { |key, value| totals[key] += value }
+      estimate[:chunks].positive?
+    end
+
+    # Batches are per document, so every document with pending chunks takes at least one request.
+    config = Rails.configuration.x.embeddings
+    minutes = [ totals[:requests].fdiv(config[:requests_per_minute]), totals[:tokens].fdiv(config[:tokens_per_minute]) ].max
+    puts "#{strategy} with #{embedder.embedder.model}: #{documents.size} #{"document".pluralize(documents.size)}, " \
+      "#{totals[:chunks]} chunks, ~#{totals[:tokens]} tokens (estimated), #{totals[:requests]} requests, " \
+      "~#{minutes.ceil} min at #{config[:requests_per_minute]} requests/min and #{config[:tokens_per_minute]} tokens/min"
+
+    if args[:dry_run] == "dry_run"
+      puts "Dry run: nothing enqueued"
+    else
+      documents.each { |document| EmbedDocumentJob.perform_later(document, strategy: strategy) }
+      puts "Enqueued #{documents.size}"
+    end
+  end
 end

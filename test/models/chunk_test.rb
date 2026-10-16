@@ -54,6 +54,30 @@ class ChunkTest < ActiveSupport::TestCase
     end
   end
 
+  test "raw embedding input is the heading path joined with ' > ', a blank line, then the body" do
+    expected = "Employee Handbook > Benefits > Paid leave\n\nFull-time employees accrue 20 days of paid leave per year."
+    assert_equal expected, chunks(:leave).embedding_input(:raw)
+    assert_equal expected, chunks(:leave).embedding_input("raw")
+  end
+
+  test "raw embedding input without a heading path is the body alone" do
+    chunk = Chunk.new(content: "Body.", heading_path: [])
+    assert_equal "Body.", chunk.embedding_input(:raw)
+  end
+
+  test "embedding input hash is the SHA-256 of the embedding input" do
+    chunk = chunks(:leave)
+    assert_equal Digest::SHA256.hexdigest(chunk.embedding_input(:raw)), chunk.embedding_input_hash(:raw)
+  end
+
+  test "contextual embedding input is not implemented yet" do
+    assert_raises(NotImplementedError) { chunks(:leave).embedding_input(:contextual) }
+  end
+
+  test "rejects an unknown embedding strategy" do
+    assert_raises(ArgumentError) { chunks(:leave).embedding_input(:hybrid) }
+  end
+
   test "allows the same position in another document" do
     assert documents(:pending_upload).chunks.create(position: 0, content: "Text", token_count: 1, content_hash: "abc").persisted?
   end

@@ -5,6 +5,8 @@ class CitewiseRakeTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
+    # Keep task descriptions, as rails -T does.
+    Rake::TaskManager.record_task_metadata = true
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "citewise:reingest" }
     @dir = Pathname(Dir.mktmpdir)
     @dir.join("guides").mkpath
@@ -70,7 +72,42 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     documents.each { |document| assert_enqueued_with(job: IngestDocumentJob, args: [ document, { force: true } ]) }
   end
 
+  test "embed dry run prints chunks, estimated tokens, requests, and duration without enqueueing or embedding" do
+    tokens = Embeddings::DocumentEmbedder.new(embedder: FakeEmbedder.new).pending(documents(:handbook), :raw).sum(&:tokens)
+
+    output = nil
+    assert_no_enqueued_jobs { assert_no_difference(-> { ChunkEmbedding.count }) { output = embed("raw", "dry_run") } }
+
+    assert_includes output, "raw with voyage-4-lite: 1 document, 2 chunks, ~#{tokens} tokens (estimated), 1 requests, ~1 min at 3 requests/min and 10000 tokens/min"
+    assert_includes output, "Dry run: nothing enqueued"
+  end
+
+  test "embed enqueues only documents with missing or stale chunks" do
+    stale = create_document("stale", ingestion_status: :ingested)
+    stale.chunks.create!(position: 0, content: "Body.", token_count: 2, content_hash: "abc")
+    Embeddings::DocumentEmbedder.new(embedder: FakeEmbedder.new, limiter: Embeddings::RateLimiter.new(requests_per_minute: 10, tokens_per_minute: 10_000)).call(documents(:handbook), strategy: :raw)
+
+    output = nil
+    assert_enqueued_jobs(1, only: EmbedDocumentJob) { output = embed }
+
+    assert_enqueued_with(job: EmbedDocumentJob, args: [ stale, { strategy: "raw" } ])
+    assert_includes output, "1 document, 1 chunks"
+    assert_includes output, "Enqueued 1"
+  end
+
+  test "embed rejects strategies that aren't implemented" do
+    assert_raises(SystemExit) { embed("contextual") }
+  end
+
+  test "embed's description says it is safe to rerun" do
+    assert_match(/\AEmbed missing or stale chunks .*safe to rerun/, Rake::Task["citewise:embed"].full_comment)
+  end
+
   private
+    def embed(*args)
+      run_task("citewise:embed", *args)
+    end
+
     def import
       run_task("citewise:import:directory", @dir.to_s, "test-collection")
     end
