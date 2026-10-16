@@ -44,5 +44,9 @@ module Citewise
       # al-… keys are MongoDB Atlas (https://ai.mongodb.com/v1), pa-… keys are Voyage (https://api.voyageai.com/v1).
       base_url: "https://ai.mongodb.com/v1"
     }
+
+    # Settings for Retrieval::Retriever. The embedding model and dimensions come from
+    # config.x.embeddings. k is the number of chunks sent to Claude; CLAUDE.md caps it at 8.
+    config.x.retrieval = { k: 8, strategy: "raw" }
   end
 end
