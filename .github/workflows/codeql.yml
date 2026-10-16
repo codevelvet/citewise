@@ -1,0 +1,41 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 6 * * 1"
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on pull request branches. Every other run gets its own
+# group (run_id), so runs on main are never cancelled or replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # upload CodeQL results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ruby, actions]
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@SHA_PLACEHOLDER # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@SHA_PLACEHOLDER # v4.38.2
+        with:
+          category: /language:${{ matrix.language }}
