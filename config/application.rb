@@ -27,5 +27,22 @@ module Citewise
     # Settings for Chunking::MarkdownChunker during ingestion. Changing them makes
     # existing documents Document.outdated; run bin/rails citewise:reingest to re-chunk.
     config.x.chunker = { target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50, merge_policy: :within_section }
+
+    # Settings for Embeddings::Embedder.default and EmbedDocumentJob. The HNSW index on
+    # chunk_embeddings serves voyage-4-lite at 1024 dimensions only.
+    config.x.embeddings = {
+      model: "voyage-4-lite",
+      dimensions: 1024,
+      # Inputs per request, and estimated tokens per request (Voyage allows 1M; keep it at most tokens_per_minute).
+      batch_size: 128,
+      max_batch_tokens: 8_000,
+      # The key's rate limits. Embeddings::RateLimiter enforces them in-process only,
+      # so the embeddings queue in config/queue.yml must keep one process and one thread.
+      requests_per_minute: 3,
+      tokens_per_minute: 10_000,
+      # Keys only authenticate on the host that issued them (a wrong host returns 403):
+      # al-… keys are MongoDB Atlas (https://ai.mongodb.com/v1), pa-… keys are Voyage (https://api.voyageai.com/v1).
+      base_url: "https://ai.mongodb.com/v1"
+    }
   end
 end

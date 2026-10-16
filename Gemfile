@@ -24,6 +24,8 @@ gem "neighbor"
 gem "ruby_llm"
 # CommonMark + GFM parser for structure-aware chunking [https://github.com/gjtorikian/commonmarker]
 gem "commonmarker"
+# HTTP client for the Voyage embeddings API [https://lostisland.github.io/faraday]
+gem "faraday"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 # gem "bcrypt", "~> 3.1.7"
