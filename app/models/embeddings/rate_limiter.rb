@@ -6,12 +6,16 @@ module Embeddings
   #
   # The window lives in this process only, so the budgets hold only while one
   # process with one thread does the embedding (see config/queue.yml).
+  # Multiple processes will create their own RateLimiter.
   class RateLimiter
     WINDOW = 60.0
+    DEFAULT_MUTEX = Mutex.new
 
     # Shared by every job in the worker process, so the budget spans jobs.
     def self.default
-      @default ||= new(**Rails.configuration.x.embeddings.slice(:requests_per_minute, :tokens_per_minute))
+      DEFAULT_MUTEX.synchronize do
+        @default ||= new(**Rails.configuration.x.embeddings.slice(:requests_per_minute, :tokens_per_minute))
+      end
     end
 
     def initialize(requests_per_minute:, tokens_per_minute:, clock: -> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }, sleeper: ->(seconds) { sleep(seconds) })
@@ -23,6 +27,8 @@ module Embeddings
       @mutex = Mutex.new
     end
 
+    # Do not call acquire in a database transaction
+    # acquire can sleep for WINDOW seconds which hold the db connection for the whole wait
     def acquire(tokens)
       # A request larger than the whole budget could never fit; let it through on an empty window.
       tokens = [ tokens, @tokens_per_minute ].min
