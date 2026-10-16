@@ -54,6 +54,19 @@ class ChunkTest < ActiveSupport::TestCase
     end
   end
 
+  test "source title is the heading path when it starts with the document title" do
+    assert_equal "Employee Handbook > Benefits > Paid leave", chunks(:leave).source_title
+  end
+
+  test "source title adds the document title when the heading path doesn't start with it" do
+    chunk = chunks(:leave)
+    chunk.heading_path = [ "Benefits", "Paid leave" ]
+    assert_equal "Employee Handbook > Benefits > Paid leave", chunk.source_title
+
+    chunk.heading_path = []
+    assert_equal "Employee Handbook", chunk.source_title
+  end
+
   test "raw embedding input is the heading path joined with ' > ', a blank line, then the body" do
     expected = "Employee Handbook > Benefits > Paid leave\n\nFull-time employees accrue 20 days of paid leave per year."
     assert_equal expected, chunks(:leave).embedding_input(:raw)

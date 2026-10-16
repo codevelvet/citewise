@@ -21,6 +21,14 @@ class Chunk < ApplicationRecord
     end
   end
 
+  # Where the chunk sits, for showing alongside its text: "Employee Handbook > Benefits".
+  # Heading paths usually start with the document's H1, which is its title,
+  # so the title is added only when the path doesn't already start with it.
+  def source_title
+    path = heading_path.first == document.title ? heading_path : [ document.title, *heading_path ]
+    path.join(" > ")
+  end
+
   # Stored on ChunkEmbedding#input_hash; a mismatch means the embedding is stale.
   def embedding_input_hash(strategy)
     Digest::SHA256.hexdigest(embedding_input(strategy))

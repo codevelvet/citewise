@@ -48,5 +48,10 @@ module Citewise
     # Settings for Retrieval::Retriever. The embedding model and dimensions come from
     # config.x.embeddings. k is the number of chunks sent to Claude; CLAUDE.md caps it at 8.
     config.x.retrieval = { k: 8, strategy: "raw" }
+
+    # Settings for Answering::Answerer.default. Keep the model a Haiku unless CLAUDE.md changes.
+    # max_retries is the one retry layer: the Anthropic SDK retries 429s and 5xx errors itself,
+    # which suits the synchronous ask flow. If answering moves into a job, set it to 0 and let the job retry.
+    config.x.answering = { model: "claude-haiku-4-5", max_tokens: 1024, max_retries: 2 }
   end
 end
