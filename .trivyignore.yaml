@@ -1,0 +1,10 @@
+# Trivy ignore list for the image-scan job in .github/workflows/ci.yml, which
+# passes it with --ignorefile (Trivy doesn't load the YAML format on its own).
+# Every entry expires so the finding resurfaces if it's still unfixed.
+vulnerabilities:
+  - id: CVE-2026-33210
+    statement: >-
+      Ruby 4.0.7's bundled default json 2.18.0. The app loads json 3.1.0
+      (not affected) through Bundler per Gemfile.lock. No Ruby 4.0.x
+      release bundles json >= 2.19.2 yet (checked 2026-10-16).
+    expired_at: 2026-11-15
