@@ -14,6 +14,28 @@ class Embeddings::VoyageEmbedderTest < ActiveSupport::TestCase
     assert_equal [ "voyage-4-lite", 1024 ], [ embedder.model, embedder.dimensions ]
   end
 
+  test "embeds documents and queries with their own input types, logging Voyage's token usage" do
+    documents = [ "Employee Handbook > Benefits > Paid leave\n\nFull-time employees accrue 20 days of paid leave per year.",
+                  "Employee Handbook > Introduction\n\nWelcome to the company. This handbook explains how we work." ]
+    log = StringIO.new
+    vectors = query = nil
+
+    with_logger(log) do
+      VCR.use_cassette("voyage_embedder", match_requests_on: %i[method uri body]) do
+        vectors = @embedder.embed_documents(documents)
+        query = @embedder.embed_query("How much paid leave do I get?")
+      end
+    end
+
+    assert_equal 2, vectors.size
+    assert vectors.all? { it.size == 1024 && it.all?(Float) }
+    assert_equal 1024, query.size
+    assert_requested :post, ENDPOINT, body: hash_including(model: "voyage-4-lite", input_type: "document", output_dimension: 1024, input: documents)
+    assert_requested :post, ENDPOINT, body: hash_including(input_type: "query", input: [ "How much paid leave do I get?" ])
+    assert_match(/Voyage embed model=voyage-4-lite input_type=document inputs=2 total_tokens=\d+/, log.string)
+    assert_match(/Voyage embed model=voyage-4-lite input_type=query inputs=1 total_tokens=\d+/, log.string)
+  end
+
   test "a rate limit is transient and carries Retry-After" do
     stub_voyage(status: 429, detail: "Rate limit exceeded", headers: { "Retry-After" => "7" })
 
@@ -57,5 +79,13 @@ class Embeddings::VoyageEmbedderTest < ActiveSupport::TestCase
   private
     def stub_voyage(status:, detail:, headers: {})
       stub_request(:post, ENDPOINT).to_return(status: status, body: { detail: detail }.to_json, headers: { "Content-Type" => "application/json" }.merge(headers))
+    end
+
+    def with_logger(io)
+      original = Rails.logger
+      Rails.logger = ActiveSupport::Logger.new(io)
+      yield
+    ensure
+      Rails.logger = original
     end
 end
