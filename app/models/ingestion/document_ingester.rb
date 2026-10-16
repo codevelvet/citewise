@@ -4,6 +4,8 @@ module Ingestion
   #   Ingestion::DocumentIngester.new.call(document)              # skips unchanged, already ingested content
   #   Ingestion::DocumentIngester.new.call(document, force: true) # always re-chunks
   #
+  # Re-chunking enqueues EmbedDocumentJob for the new chunks; a skip doesn't.
+  #
   # Errors that would recur on retry (no file, invalid UTF-8, anything the
   # chunker raises) mark the document failed. Others, such as a dropped
   # database connection or a storage timeout, propagate so the caller can retry.
@@ -40,6 +42,7 @@ module Ingestion
           ingestion_error: nil
         )
       end
+      EmbedDocumentJob.perform_later(document) if chunks.any?
       document
     rescue Error => error
       document.update!(ingestion_status: :failed, ingestion_error: error.message)

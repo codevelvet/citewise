@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @markdown = file_fixture("handbook/gitlabengineering.md").read
     @document = Document.create!(title: "gitlabengineering", source_type: :upload)
@@ -44,6 +46,21 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     @ingester.call(@document, force: true)
     assert_empty ids & @document.chunks.ids
     assert_equal ids.size, @document.chunks.count
+  end
+
+  test "enqueues embedding after an ingestion that changed the chunks" do
+    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document ]) { @ingester.call(@document) }
+
+    attach(@document, "# Changed\n\nNew body.\n")
+    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document ]) { @ingester.call(@document) }
+  end
+
+  test "does not enqueue embedding when ingestion is skipped or fails" do
+    @ingester.call(@document)
+    clear_enqueued_jobs
+
+    assert_no_enqueued_jobs(only: EmbedDocumentJob) { @ingester.call(@document) }
+    assert_no_enqueued_jobs(only: EmbedDocumentJob) { Ingestion::DocumentIngester.new(chunker: FailingChunker.new).call(@document, force: true) }
   end
 
   test "re-chunks changed content without force" do
