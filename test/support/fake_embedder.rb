@@ -24,4 +24,23 @@ class FakeEmbedder < Embeddings::Embedder
     random = Random.new(Digest::SHA256.hexdigest(text).to_i(16))
     Array.new(dimensions) { random.rand(-1.0..1.0) }
   end
+
+  # Makes Embedder.default return a FakeEmbedder, and RateLimiter.default never wait, inside the block.
+  module TestHelper
+    def with_fake_embedder(embedder = FakeEmbedder.new)
+      unlimited = Embeddings::RateLimiter.new(requests_per_minute: Float::INFINITY, tokens_per_minute: Float::INFINITY)
+      stub_singleton(Embeddings::Embedder, :default, embedder) do
+        stub_singleton(Embeddings::RateLimiter, :default, unlimited) { yield embedder }
+      end
+    end
+
+    private
+      def stub_singleton(object, name, value)
+        original = object.method(name)
+        object.define_singleton_method(name) { value }
+        yield
+      ensure
+        object.define_singleton_method(name, original)
+      end
+  end
 end
