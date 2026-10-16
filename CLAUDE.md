@@ -78,7 +78,7 @@ devcontainer exec --workspace-folder . bin/dev                    # run the app 
 - Plain `docker compose -f .devcontainer/compose.yaml up` skips `devcontainer.json` (features, `postCreateCommand`), so gems aren't installed and Ruby isn't on PATH for `docker exec`. Use the CLI.
 - The CLI ignores `forwardPorts`, so port 3000 isn't reachable from the host browser unless `ports:` is added to `compose.yaml`.
 - Compose project is `citewise`; DB data lives in the `citewise_postgres-data` volume.
-- There's no `.ruby-version`. The Ruby version is the `RUBY_VERSION` build arg in both `.devcontainer/Dockerfile` and `Dockerfile`; change both together.
+- The Ruby version lives in `.ruby-version` (read by CI) and the `RUBY_VERSION` build arg in both `.devcontainer/Dockerfile` and `Dockerfile`; change all three together.
 
 ## Database
 
