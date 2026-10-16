@@ -21,9 +21,13 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
   end
 
   test "answers from search results with native citations mapped to chunk ids, logging token usage" do
+    # The cassette matches on method and URI (VCR's default), not the body, so
+    # rewording SYSTEM_PROMPT doesn't need a new recording. The assertions below
+    # check the request's structure and refer to the prompt by constant. Re-record
+    # only when the structure changes or the recorded answer misleads.
     log = StringIO.new
     answer = with_logger(log) do
-      VCR.use_cassette("anthropic_answerer", match_requests_on: %i[method uri body]) { @answerer.answer(QUESTION, @chunks) }
+      VCR.use_cassette("anthropic_answerer") { @answerer.answer(QUESTION, @chunks) }
     end
 
     assert_requested :post, ENDPOINT, body: hash_including(
@@ -37,6 +41,7 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
       ] } ]
     )
     assert_match(/20 days/, answer.text)
+    assert_no_match(/search result|excerpt/i, answer.text)
     assert_equal "claude-haiku-4-5", answer.model
     assert answer.citations.any?
     answer.citations.each do |citation|
