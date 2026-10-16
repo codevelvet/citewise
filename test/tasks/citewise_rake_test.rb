@@ -3,6 +3,7 @@ require "rake"
 
 class CitewiseRakeTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include FakeAnswerer::TestHelper
 
   setup do
     # Keep task descriptions, as rails -T does.
@@ -103,7 +104,73 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_match(/\AEmbed missing or stale chunks .*safe to rerun/, Rake::Task["citewise:embed"].full_comment)
   end
 
+  test "ask prints the answer, citations, retrieved chunks with similarity, and token usage" do
+    output = with_question_embedder { |embedder| with_fake_embedder(embedder) { with_fake_answerer { ask("How much paid leave do I get?") } } }
+
+    question = Question.last
+    assert question.answered?
+    assert_equal <<~OUTPUT, output
+      Full-time employees accrue 20 days of paid leave per year.
+
+      Citations
+        [1] Employee Handbook > Benefits > Paid leave
+            Full-time employees accrue 20 days of paid leave per year.
+
+      Retrieved
+        1. 1.000  Employee Handbook > Benefits > Paid leave
+        2. #{format("%.3f", question.retrieval.last["similarity"])}  Employee Handbook > Introduction
+
+      Tokens: input 900, output 40, cache read 0, cache write 0
+      Time: retrieval #{question.retrieval_ms} ms, answer #{question.answer_ms} ms (question #{question.id}, claude-haiku-4-5)
+    OUTPUT
+  end
+
+  test "ask says when there are no citations" do
+    output = with_question_embedder do |embedder|
+      with_fake_embedder(embedder) { with_fake_answerer(FakeAnswerer.new(text: "The documents don't cover that.", cite: false)) { ask("Parental leave?") } }
+    end
+
+    assert_includes output, "The documents don't cover that.\n\nCitations\n  (none)\n"
+  end
+
+  test "ask rejoins a question that rake split at its commas" do
+    answerer = FakeAnswerer.new
+    with_question_embedder { |embedder| with_fake_embedder(embedder) { with_fake_answerer(answerer) { ask("How much leave", "roughly?") } } }
+
+    assert_equal "How much leave, roughly?", answerer.calls.first.first
+  end
+
+  test "ask aborts with the error when answering fails, leaving a failed question" do
+    answerer = FakeAnswerer.new
+    answerer.error = Answering::Answerer::TransientError.new("Claude 529: Overloaded")
+
+    error = assert_raises(SystemExit) do
+      with_question_embedder { |embedder| with_fake_embedder(embedder) { with_fake_answerer(answerer) { ask("How much paid leave do I get?") } } }
+    end
+    assert_not error.success?
+    assert Question.last.failed?
+  end
+
+  test "ask aborts without a question" do
+    assert_raises(SystemExit) { ask }
+  end
+
   private
+    def ask(*args)
+      run_task("citewise:ask", *args)
+    end
+
+    # An embedder whose every question lands exactly on the leave chunk.
+    def with_question_embedder
+      embedder = FakeEmbedder.new
+      leave_vector = embedder.vector_for("leave")
+      embedder.define_singleton_method(:embed_query) { |_text| leave_vector }
+      [ [ chunks(:leave), leave_vector ], [ chunks(:intro), embedder.vector_for("intro") ] ].each do |chunk, vector|
+        ChunkEmbedding.create!(chunk: chunk, model: "voyage-4-lite", strategy: :raw, dimensions: 1024, embedding: vector, input_hash: "abc")
+      end
+      yield embedder
+    end
+
     def embed(*args)
       run_task("citewise:embed", *args)
     end
