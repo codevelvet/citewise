@@ -1,0 +1,199 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on pull request branches. Every other run gets its own
+# group (run_id), so runs on main are never cancelled or replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RAILS_ENV: test
+      DB_HOST: localhost
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@SHA_PLACEHOLDER # v1.327.0
+        with:
+          bundler-cache: true
+      - name: Prepare database
+        run: bin/rails db:prepare
+      - name: Run tests
+        run: bin/rails test
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@SHA_PLACEHOLDER # v1.327.0
+        with:
+          bundler-cache: true
+      - name: RuboCop
+        run: bin/rubocop -f github
+
+  brakeman:
+    name: brakeman
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@SHA_PLACEHOLDER # v1.327.0
+        with:
+          bundler-cache: true
+      - name: Brakeman
+        run: bin/brakeman --no-pager --exit-on-warn --exit-on-error
+
+  bundler-audit:
+    name: bundler-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@SHA_PLACEHOLDER # v1.327.0
+        with:
+          bundler-cache: true
+      - name: Audit gems
+        run: bin/bundler-audit check --update
+
+  importmap-audit:
+    name: importmap-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@SHA_PLACEHOLDER # v1.327.0
+        with:
+          bundler-cache: true
+      - name: Audit importmap packages
+        run: bin/importmap audit
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          file="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLo "$RUNNER_TEMP/$file" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$file"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/bin" gitleaks
+      - name: Scan pull request commits
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: '"$RUNNER_TEMP/bin/gitleaks" git --redact --verbose --no-banner --log-opts="$BASE_SHA..$HEAD_SHA" .'
+      - name: Scan full history
+        if: github.event_name != 'pull_request'
+        run: '"$RUNNER_TEMP/bin/gitleaks" git --redact --verbose --no-banner .'
+
+  # Informational on pull requests; not a required check yet.
+  image-scan:
+    name: image-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: 0.75.0
+          TRIVY_SHA256: c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f
+        run: |
+          file="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSLo "$RUNNER_TEMP/$file" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/$file"
+          echo "$TRIVY_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/bin" trivy
+      - name: Build production image
+        run: docker build -t citewise:ci .
+      - name: Scan image
+        run: '"$RUNNER_TEMP/bin/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress citewise:ci'
+
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@SHA_PLACEHOLDER # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          file="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLo "$RUNNER_TEMP/$file" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$file"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/bin" actionlint
+      # zizmor's GitHub releases carry no checksums, so verify the PyPI wheel
+      # against PyPI's published SHA-256 and unpack the binary from it.
+      - name: Install zizmor
+        env:
+          ZIZMOR_VERSION: 1.30.1
+          ZIZMOR_SHA256: eee12266b793cb87ad4a7e3af2e72404f8a63e3de5eb099b80bf7b1cfd232a8e
+        run: |
+          file="zizmor-${ZIZMOR_VERSION}-py3-none-manylinux_2_28_x86_64.whl"
+          curl -fsSLo "$RUNNER_TEMP/$file" "https://files.pythonhosted.org/packages/py3/z/zizmor/$file"
+          echo "$ZIZMOR_SHA256  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          unzip -j -q "$RUNNER_TEMP/$file" "zizmor-${ZIZMOR_VERSION}.data/scripts/zizmor" -d "$RUNNER_TEMP/bin"
+          chmod +x "$RUNNER_TEMP/bin/zizmor"
+      - name: actionlint
+        run: '"$RUNNER_TEMP/bin/actionlint"'
+      - name: zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: '"$RUNNER_TEMP/bin/zizmor" --format=github .'
