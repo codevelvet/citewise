@@ -1,4 +1,11 @@
 ENV["RAILS_ENV"] ||= "test"
+# Tests never need real keys, so failure messages that echo request headers
+# can't leak them. Recording keeps the real keys: filter_sensitive_data needs
+# them to know what to scrub. Set before boot, which configures the clients.
+unless ENV["VCR_RECORD"]
+  ENV["ANTHROPIC_API_KEY"] = "test-anthropic-key"
+  ENV["VOYAGE_API_KEY"] = "test-voyage-key"
+end
 require_relative "../config/environment"
 require "rails/test_help"
 require "webmock/minitest"
