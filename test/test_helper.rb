@@ -13,7 +13,13 @@ VCR.configure do |config|
   # Replay only. Recording spends API credit, so it takes an explicit VCR_RECORD=1.
   config.default_cassette_options = { record: ENV["VCR_RECORD"] ? :once : :none }
   config.filter_sensitive_data("<VOYAGE_API_KEY>") { ENV["VOYAGE_API_KEY"] }
-  config.before_record { |interaction| interaction.request.headers.delete("Authorization") }
+  config.filter_sensitive_data("<ANTHROPIC_API_KEY>") { ENV["ANTHROPIC_API_KEY"] }
+  # Voyage authenticates with Authorization, Anthropic with X-Api-Key. Anthropic's
+  # responses also name the account's organization and workspace.
+  config.before_record do |interaction|
+    interaction.request.headers.reject! { |name, _| name.casecmp?("Authorization") || name.casecmp?("X-Api-Key") }
+    interaction.response.headers.reject! { |name, _| name.casecmp?("Anthropic-Organization-Id") || name.casecmp?("Anthropic-Workspace-Id") }
+  end
 end
 
 Dir[Rails.root.join("test/support/**/*.rb")].each { |file| require file }

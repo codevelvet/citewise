@@ -45,6 +45,41 @@ namespace :citewise do
     puts "Enqueued #{count}"
   end
 
+  desc "Answer a question from the embedded chunks, with citations (1 Voyage call + 1 Claude call)"
+  task :ask, [ :question ] => :environment do |_task, args|
+    # Rake splits arguments on commas, so put the question back together.
+    text = [ args[:question], *args.extras ].compact.join(", ").strip
+    abort %(Usage: bin/rails "citewise:ask[How much paid leave do I get?]") if text.empty?
+
+    begin
+      question = Answering::AskService.call(text)
+    rescue Embeddings::Embedder::Error, Answering::Answerer::Error => error
+      abort "Failed: #{error.message}"
+    end
+
+    puts question.answer, ""
+    if question.retrieval.empty?
+      puts "No embeddings found for #{Rails.configuration.x.embeddings[:model]}/#{Rails.configuration.x.retrieval[:strategy]}. Run citewise:embed."
+      next
+    end
+
+    puts "Citations"
+    puts "  (none)" if question.citations.empty?
+    question.citations.each.with_index(1) do |citation, number|
+      puts "  [#{number}] #{citation["source_title"]}"
+      puts "      #{citation["cited_text"].squish}"
+    end
+
+    puts "", "Retrieved"
+    question.retrieval.each do |result|
+      puts format("  %d. %.3f  %s", result["rank"], result["similarity"], result["source_title"])
+    end
+
+    puts "", "Tokens: input #{question.input_tokens}, output #{question.output_tokens}, " \
+      "cache read #{question.cache_read_tokens}, cache write #{question.cache_write_tokens}"
+    puts "Time: retrieval #{question.retrieval_ms} ms, answer #{question.answer_ms} ms (question #{question.id}, #{question.model})"
+  end
+
   desc "Embed missing or stale chunks of ingested documents (safe to rerun: up-to-date chunks are skipped); citewise:embed[raw,dry_run] only prints counts"
   task :embed, [ :strategy, :dry_run ] => :environment do |_task, args|
     strategy = args[:strategy].presence || "raw"

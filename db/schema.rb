@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_16_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_16_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -83,6 +83,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_16_120000) do
     t.string "chunker_fingerprint"
     t.text "ingestion_error"
     t.index ["source_type", "source_uri"], name: "index_documents_on_source_type_and_source_uri", unique: true, where: "(source_uri IS NOT NULL)"
+  end
+
+  create_table "questions", force: :cascade do |t|
+    t.text "text", null: false
+    t.text "answer"
+    t.string "status", default: "pending", null: false
+    t.text "error"
+    t.string "model"
+    t.jsonb "retrieval", default: [], null: false
+    t.jsonb "citations", default: [], null: false
+    t.integer "input_tokens"
+    t.integer "output_tokens"
+    t.integer "cache_read_tokens"
+    t.integer "cache_write_tokens"
+    t.integer "retrieval_ms"
+    t.integer "answer_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
