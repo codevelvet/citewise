@@ -20,7 +20,11 @@ class FakeAnswerer < Answering::Answerer
     calls << [ question, chunks ]
 
     citations = []
-    citations << { chunk_id: chunks.first.id, cited_text: chunks.first.content, answer_start: 0, answer_end: text.length } if cite && chunks.any?
+    if cite && chunks.any?
+      paragraphs = Chunking::Paragraphs.split(chunks.first.content)
+      citations << { chunk_id: chunks.first.id, cited_text: paragraphs.join("\n\n"), block_start: 0, block_end: paragraphs.size,
+                     answer_start: 0, answer_end: text.length }
+    end
     Answer.new(text: text, citations: citations, model: model, usage: USAGE)
   end
 

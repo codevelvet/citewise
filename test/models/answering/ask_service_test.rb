@@ -29,7 +29,7 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
                    "source_title" => "Employee Handbook > Benefits > Paid leave", "content" => chunks(:leave).content },
                  question.retrieval.first.slice("document_id", "document_title", "source_title", "content"))
 
-    assert_equal [ { "chunk_id" => chunks(:leave).id, "cited_text" => chunks(:leave).content, "answer_start" => 0, "answer_end" => question.answer.length,
+    assert_equal [ { "chunk_id" => chunks(:leave).id, "cited_text" => chunks(:leave).content, "block_start" => 0, "block_end" => 1, "answer_start" => 0, "answer_end" => question.answer.length,
                      "document_id" => documents(:handbook).id, "document_title" => "Employee Handbook",
                      "source_title" => "Employee Handbook > Benefits > Paid leave" } ], question.citations
 

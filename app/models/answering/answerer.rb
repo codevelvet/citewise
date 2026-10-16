@@ -7,9 +7,13 @@ module Answering
   #
   #   answer = Answering::Answerer.default.answer("How much paid leave do I get?", chunks)
   #   answer.text      # => "Full-time employees accrue 20 days of paid leave per year."
-  #   answer.citations # => [ { chunk_id: 12, cited_text: "...", answer_start: 0, answer_end: 57 } ]
+  #   answer.citations # => [ { chunk_id: 12, cited_text: "...", block_start: 0, block_end: 1, answer_start: 0, answer_end: 57 } ]
   #   answer.model     # => "claude-haiku-4-5"
   #   answer.usage     # => { input_tokens: 1200, output_tokens: 40, cache_read_tokens: 0, cache_write_tokens: 0 }
+  #
+  # block_start and block_end index the chunk's passages (end exclusive):
+  # Chunking::Paragraphs.split(chunk.content)[block_start...block_end] are the
+  # passages cited, and cited_text is those passages joined with blank lines.
   #
   # answer_start and answer_end are character offsets into text (end exclusive):
   # text[answer_start...answer_end] is the part of the answer the citation supports.

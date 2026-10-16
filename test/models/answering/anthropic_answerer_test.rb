@@ -3,6 +3,11 @@ require "test_helper"
 class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
   ENDPOINT = "https://api.anthropic.com/v1/messages"
   QUESTION = "How much paid leave do I get?"
+  LEAVE_DETAILS_PARAGRAPHS = [
+    "Paid leave accrues monthly, at one twelfth of your yearly allowance.",
+    "### Carry-over\n\nUp to 5 unused days carry over into the next year. Days carried over must be used by March 31.",
+    "### Booking leave\n\nBook leave in the HR portal at least two weeks ahead. Your manager approves or declines within three working days."
+  ].freeze
 
   setup do
     config = Rails.configuration.x.answering
@@ -73,6 +78,50 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
       [ chunks(:leave).id, "the handbook explains how we work" ]
     ], spans
     assert_equal chunks(:leave).content, answer.citations.first[:cited_text]
+    assert_equal [ 0, 1 ], answer.citations.first.values_at(:block_start, :block_end)
+  end
+
+  test "sends each paragraph of a chunk as its own text block, with inline headings attached" do
+    stub_claude(content: [ text_block("Up to 5 days.") ])
+
+    @answerer.answer("How many unused leave days carry over?", [ chunks(:leave_details), chunks(:intro) ])
+
+    assert_requested :post, ENDPOINT, body: hash_including(messages: [ { role: "user", content: [
+      search_result(chunks(:leave_details), "Leave Policy > Benefits", LEAVE_DETAILS_PARAGRAPHS),
+      search_result(chunks(:intro), "Employee Handbook > Introduction"),
+      { type: "text", text: "How many unused leave days carry over?" }
+    ] } ])
+  end
+
+  test "a citation of some of a chunk's blocks maps to just that passage" do
+    # The API's cited_text for several blocks is ignored: cited_text is rebuilt from our own blocks.
+    stub_claude(content: [ text_block("Up to 5 unused days carry over.", citations: [
+      citation(chunks(:leave_details), blocks: 1...2, cited_text: "Up to 5 unused days carry over into the next year."),
+      citation(chunks(:leave_details), blocks: 1...3, cited_text: "unspecified join")
+    ]) ])
+
+    answer = @answerer.answer("How many unused leave days carry over?", [ chunks(:leave_details), chunks(:intro) ])
+
+    _accrual, carry_over, booking = LEAVE_DETAILS_PARAGRAPHS
+    assert_equal [
+      { chunk_id: chunks(:leave_details).id, cited_text: carry_over, block_start: 1, block_end: 2, answer_start: 0, answer_end: 31 },
+      { chunk_id: chunks(:leave_details).id, cited_text: "#{carry_over}\n\n#{booking}", block_start: 1, block_end: 3, answer_start: 0, answer_end: 31 }
+    ], answer.citations
+    answer.citations.each { assert_includes chunks(:leave_details).content, it[:cited_text] }
+  end
+
+  test "a citation of blocks outside its chunk is dropped and logged" do
+    stub_claude(content: [ text_block("Up to 5 days.", citations: [
+      citation(chunks(:leave_details), blocks: 1...2), citation(chunks(:leave_details), blocks: 2...4), citation(chunks(:leave), blocks: 1...2)
+    ]) ])
+
+    log = StringIO.new
+    answer = with_logger(log) { @answerer.answer(QUESTION, [ chunks(:leave_details), chunks(:leave) ]) }
+
+    assert_equal [ [ 1, 2 ] ], answer.citations.map { [ it[:block_start], it[:block_end] ] }
+    assert_includes log.string, "Claude citation dropped: blocks 2...4 aren't in chunk:#{chunks(:leave_details).id}'s 3"
+    assert_includes log.string, "Claude citation dropped: blocks 1...2 aren't in chunk:#{chunks(:leave).id}'s 1"
+    assert_includes log.string, "citations=1 dropped=2"
   end
 
   test "a citation that doesn't name a retrieved chunk is dropped and logged" do
@@ -139,17 +188,17 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
   end
 
   private
-    def search_result(chunk, title)
-      { type: "search_result", source: "chunk:#{chunk.id}", title: title, content: [ { type: "text", text: chunk.content } ], citations: { enabled: true } }
+    def search_result(chunk, title, blocks = [ chunk.content ])
+      { type: "search_result", source: "chunk:#{chunk.id}", title: title, content: blocks.map { { type: "text", text: it } }, citations: { enabled: true } }
     end
 
     def text_block(text, citations: nil)
       { type: "text", text: text, citations: citations }
     end
 
-    def citation(chunk, source: "chunk:#{chunk.id}")
-      { type: "search_result_location", source: source, title: chunk&.source_title, cited_text: chunk&.content || "Text.",
-        search_result_index: 0, start_block_index: 0, end_block_index: 1 }
+    def citation(chunk, source: "chunk:#{chunk.id}", blocks: 0...1, cited_text: chunk&.content || "Text.")
+      { type: "search_result_location", source: source, title: chunk&.source_title, cited_text: cited_text,
+        search_result_index: 0, start_block_index: blocks.begin, end_block_index: blocks.end }
     end
 
     def stub_claude(content:, usage: { input_tokens: 300, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
