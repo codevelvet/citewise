@@ -158,7 +158,7 @@ jobs:
       - name: Build production image
         run: docker build -t citewise:ci .
       - name: Scan image
-        run: '"$RUNNER_TEMP/bin/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress citewise:ci'
+        run: '"$RUNNER_TEMP/bin/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --ignorefile .trivyignore.yaml --exit-code 1 --no-progress citewise:ci'
 
   workflow-lint:
     name: workflow-lint

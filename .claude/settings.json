@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(bin/rails runner:*)",
+      "Bash(bin/rails console:*)",
+      "Bash(bin/rails citewise:*)"
+    ],
+    "deny": [
+      "Edit(.devcontainer/**)",
+      "Edit(.github/**)"
+    ]
+  }
+}
