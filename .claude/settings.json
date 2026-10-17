@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bin/rails db:migrate)",
+      "Bash(bin/rails test *)",
+      "Bash(bin/rubocop *)"
+    ],
+    "ask": [
+      "Bash(bin/rails runner:*)",
+      "Bash(bin/rails console:*)",
+      "Bash(bin/rails citewise:*)"
+    ],
+    "deny": [
+      "Edit(.devcontainer/**)",
+      "Edit(.github/**)"
+    ]
+  }
+}

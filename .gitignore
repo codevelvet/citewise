@@ -71,3 +71,4 @@ yarn-debug.log*
 # Ignore asset build output; bin/dev and assets:precompile regenerate it
 /app/assets/builds/*
 !/app/assets/builds/.keep
+.claude/settings.local.json
