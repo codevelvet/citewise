@@ -21,12 +21,18 @@
 
   "customizations": {
     "vscode": {
-      "extensions": ["anthropic.claude-code", "Shopify.ruby-lsp"]
+      "extensions": ["anthropic.claude-code", "Shopify.ruby-lsp"],
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
     }
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   "forwardPorts": [3000, 5432],
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
 
   // Uncomment to connect as root instead. More info: https://containers.dev/implementors/json_reference/#remoteUser.
   // "remoteUser": "root",
@@ -39,10 +45,11 @@
   // Use 'postCreateCommand' to run commands after the container is created.
   "postCreateCommand": "/usr/bin/sudo /usr/local/bin/citewise-firewall.sh && bin/setup --skip-server",
 
-  // Tripwire to warn about VSCode setting reset for ssh forwarding -> none -> global
-  "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container' || true",
+  // Tripwires: warn if the SSH agent leaks in or the firewall isn't active
+  "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container'; curl -s --max-time 3 https://example.com >/dev/null 2>&1 && echo '⚠️  WARNING: FIREWALL NOT ACTIVE' || true",
 
   // Firewall Claude
   "postStartCommand": "/usr/bin/sudo /usr/local/bin/citewise-firewall.sh",
   "waitFor": "postStartCommand"
+
 }

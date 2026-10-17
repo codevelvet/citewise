@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bin/rails db:migrate)",
+      "Bash(bin/rails test *)",
+      "Bash(bin/rubocop *)"
+    ],
+    "deny": [
+      "Edit(//workspaces/citewise/.github/**)",
+      "Edit(//workspaces/citewise/.devcontainer/**)",
+      "Edit(//workspaces/citewise/.claude/**)",
+      "Edit(//workspaces/citewise/CLAUDE.md)",
+      "Read(//workspaces/citewise/.env)",
+      "Edit(//workspaces/citewise/.mcp.json)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedHooksOnly": true
+}

@@ -8,6 +8,11 @@ ENV BINDING="0.0.0.0"
 
 USER root
 
+# Setup managed-settings.json
+COPY .devcontainer/managed-settings.json /etc/claude-code/managed-settings.json
+RUN chown root:root /etc/claude-code/managed-settings.json \
+  && chmod 0644 /etc/claude-code/managed-settings.json
+
 # Tools the firewall needs
 RUN apt-get update \
  && sudo apt-get install -y --no-install-recommends iptables ipset dnsutils aggregate jq curl conntrack \
