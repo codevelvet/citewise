@@ -37,8 +37,12 @@
 
 
   // Use 'postCreateCommand' to run commands after the container is created.
-  "postCreateCommand": "bin/setup --skip-server",
+  "postCreateCommand": "/usr/bin/sudo /usr/local/bin/citewise-firewall.sh && bin/setup --skip-server",
 
   // Tripwire to warn about VSCode setting reset for ssh forwarding -> none -> global
-  "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container' || true"
+  "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container' || true",
+
+  // Firewall Claude
+  "postStartCommand": "/usr/bin/sudo /usr/local/bin/citewise-firewall.sh",
+  "waitFor": "postStartCommand"
 }

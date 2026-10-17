@@ -45,6 +45,7 @@
 
 # Ignore development files
 /.devcontainer
+!/.devcontainer/init-firewall.sh
 
 # Ignore Docker-related files
 /.dockerignore

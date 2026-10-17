@@ -8,6 +8,18 @@ services:
 
     volumes:
     - ../../citewise:/workspaces/citewise:cached
+    # read-only overlays on the workspace mount above
+    - ../.claude:/workspaces/citewise/.claude:ro
+    - ../.github:/workspaces/citewise/.github:ro
+    - ../.devcontainer:/workspaces/citewise/.devcontainer:ro
+    - ../.git/hooks:/workspaces/citewise/.git/hooks:ro
+    - ../.git/config:/workspaces/citewise/.git/config:ro
+    - ../CLAUDE.md:/workspaces/citewise/CLAUDE.md:ro
+
+    # lets the firewall script (running as root through sudo) manage network rules
+    cap_add:
+    - NET_ADMIN
+    - NET_RAW
 
     # Overrides default command so things don't shut down after the process ends.
     command: sleep infinity
