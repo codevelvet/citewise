@@ -10,7 +10,7 @@ USER root
 
 # Tools the firewall needs
 RUN apt-get update \
- && sudo apt-get install -y --no-install-recommends iptables ipset dnsutils aggregate jq curl \
+ && sudo apt-get install -y --no-install-recommends iptables ipset dnsutils aggregate jq curl conntrack \
  && rm -rf /var/lib/apt/lists/*
 
 # vscode may run the firewall script as root, with no arguments, and nothing else
