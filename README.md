@@ -45,6 +45,7 @@ Ruby, Postgres, and gems don't need to be installed on the host. They all live i
 
    ```sh
    ANTHROPIC_API_KEY=sk-ant-...
+   VOYAGE_API_KEY=al...
    ```
 
    `.env` is git- and docker-ignored. It's loaded only when the container is **created**, so rebuild the container after changing it (see [Rebuild](#rebuild)).
