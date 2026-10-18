@@ -5,7 +5,7 @@ gem "rails", "~> 8.1.4"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
 # Load .env files into ENV in development and test
-gem 'dotenv-rails', groups: [:development, :test]
+gem "dotenv-rails", groups: %i[ development test ]
 # Use postgresql as the database for Active Record
 gem "pg", "~> 1.1"
 # Use the Puma web server [https://github.com/puma/puma]
