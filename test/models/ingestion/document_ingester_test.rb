@@ -44,8 +44,8 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     assert_equal ingested_at, @document.reload.ingested_at
 
     @ingester.call(@document, force: true)
-    assert_empty ids & @document.chunks.ids
-    assert_equal ids.size, @document.chunks.count
+    assert_equal ids.sort, @document.chunks.ids.sort
+    assert_operator @document.reload.ingested_at, :>, ingested_at
   end
 
   test "enqueues embedding after an ingestion that changed the chunks" do
@@ -120,7 +120,7 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     @ingester.call(@document)
     chunks = @document.chunks.order(:position).to_a
 
-    stub(Chunk, :insert_all!, ->(*) { raise ActiveRecord::Deadlocked, "deadlock detected" }) do
+    stub(Chunk, :upsert_all, ->(*) { raise ActiveRecord::Deadlocked, "deadlock detected" }) do
       assert_raises(ActiveRecord::Deadlocked) { @ingester.call(@document, force: true) }
     end
 
@@ -130,7 +130,66 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     assert_equal chunks, @document.chunks.order(:position).to_a
   end
 
+  test "an edit keeps the unchanged chunks and their embeddings" do
+    ingest(chunk("Alpha."), chunk("Beta."), chunk("Gamma."))
+    embed
+    alpha, beta, gamma = @document.chunks.order(:position).to_a
+    embeddings = ChunkEmbedding.where(chunk: [ alpha, gamma ]).order(:id).pluck(:id, :chunk_id, :updated_at)
+
+    ingest(chunk("Alpha."), chunk("Beta, edited."), chunk("Gamma."))
+
+    chunks = @document.chunks.order(:position).to_a
+    assert_equal [ alpha.id, gamma.id ], [ chunks.first.id, chunks.last.id ]
+    assert_not_includes chunks.map(&:id), beta.id
+    assert_equal embeddings, ChunkEmbedding.where(chunk: [ alpha, gamma ]).order(:id).pluck(:id, :chunk_id, :updated_at)
+    assert_equal [ "Beta, edited." ], document_embedder.pending(@document, :raw).map { it.chunk.content }
+  end
+
+  test "reordered chunks keep their ids and take the new positions" do
+    ingest(chunk("Alpha."), chunk("Beta."), chunk("Gamma."))
+    ids = @document.chunks.pluck(:content, :id).to_h
+
+    ingest(chunk("Gamma."), chunk("Delta."), chunk("Alpha."), chunk("Beta."))
+
+    saved = @document.chunks.order(:position).pluck(:position, :content, :id)
+    assert_equal [ [ 0, "Gamma." ], [ 1, "Delta." ], [ 2, "Alpha." ], [ 3, "Beta." ] ], saved.map { it.first(2) }
+    assert_equal ids.values_at("Gamma.", "Alpha.", "Beta."), saved.values_at(0, 2, 3).map(&:last)
+  end
+
+  test "pairs repeated content with the saved chunks in order" do
+    ingest(chunk("Same.", heading_path: [ "A" ]), chunk("Same.", heading_path: [ "B" ]))
+    first, second = @document.chunks.order(:position).ids
+
+    ingest(chunk("New."), chunk("Same.", heading_path: [ "A" ]), chunk("Same.", heading_path: [ "B" ]))
+
+    same = @document.chunks.where(content: "Same.").order(:position)
+    assert_equal [ [ first, [ "A" ] ], [ second, [ "B" ] ] ], same.pluck(:id, :heading_path)
+  end
+
+  test "a renamed heading keeps the chunk and makes its embedding stale" do
+    ingest(chunk("Alpha.", heading_path: [ "Old" ]))
+    embed
+    id = @document.chunks.sole.id
+
+    ingest(chunk("Alpha.", heading_path: [ "New" ]))
+
+    assert_equal [ id, [ "New" ] ], @document.chunks.pick(:id, :heading_path)
+    assert_equal [ id ], document_embedder.pending(@document, :raw).map { it.chunk.id }
+  end
+
   private
+    class StaticChunker
+      attr_accessor :chunks
+
+      def call(*, **)
+        chunks
+      end
+
+      def fingerprint
+        "0:111111111111"
+      end
+    end
+
     class FailingChunker
       def call(*, **)
         raise "chunker broke"
@@ -139,6 +198,26 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
       def fingerprint
         "0:000000000000"
       end
+    end
+
+    def chunk(content, heading_path: [ "Doc" ])
+      Chunking::Chunk.new(content: content, heading_path: heading_path, position: nil, token_count: 1, content_hash: Digest::SHA256.hexdigest(content))
+    end
+
+    # Ingests the chunks in this order, as if the chunker returned them.
+    def ingest(*chunks)
+      chunker = StaticChunker.new
+      chunker.chunks = chunks.each_with_index.map { |chunk, position| chunk.with(position: position) }
+      Ingestion::DocumentIngester.new(chunker: chunker).call(@document, force: true)
+    end
+
+    def embed
+      document_embedder.call(@document, strategy: :raw)
+    end
+
+    def document_embedder
+      unlimited = Embeddings::RateLimiter.new(requests_per_minute: Float::INFINITY, tokens_per_minute: Float::INFINITY)
+      Embeddings::DocumentEmbedder.new(embedder: FakeEmbedder.new, limiter: unlimited)
     end
 
     def attach(document, markdown)

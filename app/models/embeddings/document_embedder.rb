@@ -26,6 +26,7 @@ module Embeddings
       batches(pending(document, strategy)).each do |batch|
         @limiter.acquire(batch.sum(&:tokens))
         vectors = embedder.embed_documents(batch.map(&:text))
+        check!(batch, vectors)
         rows = batch.zip(vectors).map do |input, vector|
           { chunk_id: input.chunk.id, model: embedder.model, strategy: strategy.to_s, dimensions: embedder.dimensions, embedding: vector, input_hash: input.input_hash }
         end
@@ -63,5 +64,18 @@ module Embeddings
     def estimate(inputs)
       { chunks: inputs.size, tokens: inputs.sum(&:tokens), requests: batches(inputs).size }
     end
+
+    private
+      # upsert_all skips validations, so a short or malformed response would
+      # otherwise surface as a database constraint error.
+      def check!(batch, vectors)
+        if vectors.size != batch.size
+          raise Embedder::PermanentError, "Embedder returned #{vectors.size} vectors for #{batch.size} inputs"
+        end
+
+        if (wrong = vectors.find { it&.size != embedder.dimensions })
+          raise Embedder::PermanentError, "Embedder returned a #{wrong&.size || 0}-dimension vector, expected #{embedder.dimensions}"
+        end
+      end
   end
 end
