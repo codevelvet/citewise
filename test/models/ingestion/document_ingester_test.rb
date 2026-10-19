@@ -130,6 +130,23 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     assert_equal chunks, @document.chunks.order(:position).to_a
   end
 
+  test "a transient error while inserting edited chunks restores the original chunks and embeddings" do
+    ingest(chunk("Alpha."), chunk("Beta."), chunk("Gamma."))
+    embed
+    chunks = @document.chunks.order(:position).pluck(:id, :position, :content, :heading_path, :updated_at)
+    embeddings = ChunkEmbedding.where(chunk: @document.chunks).order(:id).pluck(:id, :chunk_id, :input_hash)
+
+    # Fails after the edited chunk's row is deleted and the kept rows are renumbered.
+    stub(Chunk, :insert_all!, ->(*) { raise ActiveRecord::Deadlocked, "deadlock detected" }) do
+      assert_raises(ActiveRecord::Deadlocked) { ingest(chunk("Alpha."), chunk("Beta, edited."), chunk("Gamma.")) }
+    end
+
+    assert_equal chunks, @document.chunks.order(:position).pluck(:id, :position, :content, :heading_path, :updated_at)
+    assert_equal embeddings, ChunkEmbedding.where(chunk: @document.chunks).order(:id).pluck(:id, :chunk_id, :input_hash)
+    assert_not @document.reload.failed?
+    assert_nil @document.ingestion_error
+  end
+
   test "an edit keeps the unchanged chunks and their embeddings" do
     ingest(chunk("Alpha."), chunk("Beta."), chunk("Gamma."))
     embed
