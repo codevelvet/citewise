@@ -4,7 +4,8 @@ module Ingestion
   #   Ingestion::DocumentIngester.new.call(document)              # skips unchanged, already ingested content
   #   Ingestion::DocumentIngester.new.call(document, force: true) # always re-chunks
   #
-  # Re-chunking enqueues EmbedDocumentJob for the new chunks; a skip doesn't.
+  # Re-chunking keeps each saved chunk whose content is unchanged, with its id
+  # and embeddings, and enqueues EmbedDocumentJob for the rest; a skip doesn't.
   #
   # Errors that would recur on retry (no file, invalid UTF-8, anything the
   # chunker raises) mark the document failed. Others, such as a dropped
@@ -29,9 +30,7 @@ module Ingestion
       chunks = chunk(markdown, document.title)
 
       Document.transaction do
-        document.chunks.delete_all
-        Chunk.insert_all!(chunks.map { |chunk| chunk.to_h.merge(document_id: document.id) }) if chunks.any?
-        document.chunks.reset
+        replace_chunks(document, chunks)
         document.update!(
           # The chunker titles every heading path with the front matter title, when there is one.
           title: chunks.first&.heading_path&.first || document.title,
@@ -58,6 +57,23 @@ module Ingestion
         markdown
       rescue ActiveStorage::FileNotFoundError => error
         raise Error, "#{error.class}: #{error.message}"
+      end
+
+      # Pairs each new chunk with a saved chunk of the same content, in position
+      # order, and updates that row in place; deletes unpaired rows and inserts
+      # unpaired chunks. A kept chunk whose heading path changed gets a stale
+      # embedding, which EmbedDocumentJob replaces.
+      def replace_chunks(document, chunks)
+        ids = document.chunks.order(:position).pluck(:content_hash, :id).group_by(&:first).transform_values { it.map(&:last) }
+        rows = chunks.map { |chunk| chunk.to_h.merge(document_id: document.id, id: ids[chunk.content_hash]&.shift) }
+        kept, added = rows.partition { it[:id] }
+
+        document.chunks.where.not(id: kept.pluck(:id)).delete_all
+        # Positions are unique per document, so move the kept chunks out of the way before renumbering them.
+        document.chunks.update_all("position = -1 - position")
+        Chunk.upsert_all(kept) if kept.any?
+        Chunk.insert_all!(added.map { it.except(:id) }) if added.any?
+        document.chunks.reset
       end
 
       # The chunker does no IO, so anything it raises will happen again on retry.

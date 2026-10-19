@@ -106,6 +106,22 @@ class Embeddings::DocumentEmbedderTest < ActiveSupport::TestCase
     assert_equal 2, failing.pending(@document, :raw).size
   end
 
+  test "raises a permanent error when the embedder returns fewer vectors than inputs" do
+    @fake.define_singleton_method(:embed_documents) { |texts| super(texts).drop(1) }
+
+    error = assert_raises(Embeddings::Embedder::PermanentError) { embedder.call(@document, strategy: :raw) }
+    assert_equal "Embedder returned 1 vectors for 2 inputs", error.message
+    assert_equal 0, ChunkEmbedding.count
+  end
+
+  test "raises a permanent error when a vector has the wrong dimensions" do
+    @fake.define_singleton_method(:embed_documents) { |texts| super(texts).tap { it[1] = it[1].first(512) } }
+
+    error = assert_raises(Embeddings::Embedder::PermanentError) { embedder.call(@document, strategy: :raw) }
+    assert_equal "Embedder returned a 512-dimension vector, expected 1024", error.message
+    assert_equal 0, ChunkEmbedding.count
+  end
+
   test "estimates chunks, tokens, and requests" do
     add_chunks(3, words: 10)
     inputs = embedder.pending(@document, :raw)
