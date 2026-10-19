@@ -48,7 +48,8 @@ Ruby, Postgres, and gems don't need to be installed on the host. They all live i
    VOYAGE_API_KEY=al...
    ```
 
-   `.env` is git- and docker-ignored. It's loaded only when the container is **created**, so rebuild the container after changing it (see [Rebuild](#rebuild)).
+   `.env` is git- and docker-ignored.
+   Dotenv reads it each time Rails boots, so restart the server or job worker after changing it.
 
 3. Start the devcontainer (next section). On first creation it runs `bin/setup --skip-server`, which installs gems and creates and migrates the database. Nothing else needs to be set up by hand.
 
@@ -106,7 +107,7 @@ docker compose -f .devcontainer/compose.yaml down --volumes
 
 ### Rebuild
 
-Rebuild after changing the `Dockerfile`, devcontainer features, or `.env`.
+Rebuild after changing the `Dockerfile` or devcontainer features.
 
 **VS Code:** **Dev Containers: Rebuild Container**.
 
