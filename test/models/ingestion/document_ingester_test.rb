@@ -118,7 +118,7 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
 
   test "a transient error is raised, not recorded" do
     @ingester.call(@document)
-    chunks = @document.chunks.order(:position).to_a
+    chunks = @document.chunks.order(:position).pluck(:id, :position, :content, :heading_path, :updated_at)
 
     stub(Chunk, :upsert_all, ->(*) { raise ActiveRecord::Deadlocked, "deadlock detected" }) do
       assert_raises(ActiveRecord::Deadlocked) { @ingester.call(@document, force: true) }
@@ -127,7 +127,7 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
     @document.reload
     assert_not @document.failed?
     assert_nil @document.ingestion_error
-    assert_equal chunks, @document.chunks.order(:position).to_a
+    assert_equal chunks, @document.chunks.order(:position).pluck(:id, :position, :content, :heading_path, :updated_at)
   end
 
   test "a transient error while inserting edited chunks restores the original chunks and embeddings" do
