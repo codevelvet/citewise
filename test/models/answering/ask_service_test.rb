@@ -114,6 +114,17 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal "boom", question.error
   end
 
+  test "logs the original error before marking the question failed, even when that update raises" do
+    # Postgres rejects NUL bytes in text, so saving this message as the question's error fails.
+    @embedder.define_singleton_method(:embed_query) { |_text| raise "boom\u0000" }
+    log = StringIO.new
+
+    raised = assert_raises(ArgumentError) { with_logger(log) { ask } }
+    assert_equal "boom\u0000", raised.cause.message
+    assert Question.last.pending?
+    assert_match(/Question #{Question.last.id} failed: RuntimeError: boom/, log.string)
+  end
+
   test "uses the default retriever and answerer" do
     question = with_fake_embedder(@embedder) { with_fake_answerer { Answering::AskService.call(QUESTION) } }
 

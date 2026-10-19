@@ -41,6 +41,8 @@ module Answering
       )
       question
     rescue => error
+      # Logged first, so the original survives if the update below also raises.
+      Rails.logger.error "Question #{question&.id} failed: #{error.class}: #{error.message}"
       question&.update!(status: :failed, error: error.message)
       raise
     end
