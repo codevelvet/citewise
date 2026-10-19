@@ -21,8 +21,10 @@ module Retrieval
       rows = relation(embedder.embed_query(text), k).map { [ it.chunk_id, it.distance ] }
       chunks = Chunk.includes(:document).where(id: rows.map(&:first)).index_by(&:id)
 
-      rows.each_with_index.map do |(chunk_id, distance), index|
-        Result.new(chunk: chunks.fetch(chunk_id), similarity: 1 - distance, rank: index + 1)
+      # A chunk can vanish between the two queries when its document is re-ingested.
+      found = rows.filter_map { |chunk_id, distance| [ chunks[chunk_id], distance ] if chunks.key?(chunk_id) }
+      found.each_with_index.map do |(chunk, distance), index|
+        Result.new(chunk: chunk, similarity: 1 - distance, rank: index + 1)
       end
     end
 

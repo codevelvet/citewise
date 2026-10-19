@@ -44,6 +44,17 @@ class Retrieval::RetrieverTest < ActiveSupport::TestCase
     assert_equal [ @nearest ], Retrieval::Retriever.new(embedder: @embedder, k: 1).call("question").map(&:chunk)
   end
 
+  test "skips chunks deleted after the nearest-neighbor query" do
+    # Re-ingesting a document between the kNN query and the chunk load deletes its chunks.
+    middle = @middle
+    @retriever.define_singleton_method(:relation) { |vector, k| super(vector, k).load.tap { middle.destroy! } }
+
+    results = @retriever.call("question")
+
+    assert_equal [ @nearest, @farthest ], results.map(&:chunk)
+    assert_equal [ 1, 2 ], results.map(&:rank)
+  end
+
   test "binds the query vector and keeps the index predicate literal" do
     sql, binds = query_of(@retriever.relation(@query, 8))
 
