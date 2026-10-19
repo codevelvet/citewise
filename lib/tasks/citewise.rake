@@ -80,6 +80,12 @@ namespace :citewise do
     puts "Time: retrieval #{question.retrieval_ms} ms, answer #{question.answer_ms} ms (question #{question.id}, #{question.model})"
   end
 
+  desc "Mark questions pending for over an hour failed (also runs every 15 minutes in production via config/recurring.yml)"
+  task fail_abandoned_questions: :environment do
+    count = Question.fail_abandoned
+    puts "Marked #{count} abandoned #{"question".pluralize(count)} failed"
+  end
+
   desc "Embed missing or stale chunks of ingested documents (safe to rerun: up-to-date chunks are skipped); citewise:embed[raw,dry_run] only prints counts"
   task :embed, [ :strategy, :dry_run ] => :environment do |_task, args|
     strategy = args[:strategy].presence || "raw"

@@ -165,6 +165,13 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_raises(SystemExit) { ask }
   end
 
+  test "fail_abandoned_questions marks questions pending for over an hour failed" do
+    abandoned = Question.create!(text: "Abandoned?", created_at: 2.hours.ago)
+
+    assert_equal "Marked 1 abandoned question failed\n", run_task("citewise:fail_abandoned_questions")
+    assert abandoned.reload.failed?
+  end
+
   private
     def ask(*args)
       run_task("citewise:ask", *args)
