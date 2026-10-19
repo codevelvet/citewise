@@ -1,8 +1,8 @@
 class IngestDocumentJob < ApplicationJob
   queue_as :ingestion
 
-  # Never ingest the same document twice at once; a second job waits for the first.
-  limits_concurrency to: 1, key: ->(document, **) { document }
+  # Never ingest a document while another ingest or embed job for it runs; this one waits.
+  include DocumentSerialized
 
   # Deterministic failures never get here: the ingester marks the document failed.
   retry_on ActiveRecord::ConnectionNotEstablished, ActiveRecord::Deadlocked, ActiveRecord::LockWaitTimeout,
@@ -11,6 +11,8 @@ class IngestDocumentJob < ApplicationJob
   end
 
   def perform(document, force: false)
+    # Clear the queued flag before reading the file, so a change made during the run queues a follow-up.
+    Document.where(id: document.id).update_all(ingest_queued_at: nil)
     Ingestion::DocumentIngester.new.call(document, force: force)
   end
 end

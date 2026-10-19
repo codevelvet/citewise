@@ -1,11 +1,14 @@
 module Ingestion
   # Turns a document's attached Markdown into saved chunks.
   #
-  #   Ingestion::DocumentIngester.new.call(document)              # skips unchanged, already ingested content
+  #   Ingestion::DocumentIngester.new.call(document)              # skips content already ingested with the current chunker
   #   Ingestion::DocumentIngester.new.call(document, force: true) # always re-chunks
   #
+  # Run through IngestDocumentJob (via Document#enqueue_ingest), not directly,
+  # so the per-document lock applies.
+  #
   # Re-chunking keeps each saved chunk whose content is unchanged, with its id
-  # and embeddings, and enqueues EmbedDocumentJob for the rest; a skip doesn't.
+  # and embeddings, and queues embedding for the rest; a skip doesn't.
   #
   # Errors that would recur on retry (no file, invalid UTF-8, anything the
   # chunker raises) mark the document failed. Others, such as a dropped
@@ -24,7 +27,7 @@ module Ingestion
     def call(document, force: false)
       markdown = read(document)
       content_hash = Digest::SHA256.hexdigest(markdown)
-      return document if !force && document.ingested? && document.content_hash == content_hash
+      return document if !force && document.ingested? && document.content_hash == content_hash && document.chunker_fingerprint == fingerprint
 
       document.processing!
       chunks = chunk(markdown, document.title)
@@ -41,7 +44,7 @@ module Ingestion
           ingestion_error: nil
         )
       end
-      EmbedDocumentJob.perform_later(document) if chunks.any?
+      document.enqueue_embed if chunks.any?
       document
     rescue Error => error
       document.update!(ingestion_status: :failed, ingestion_error: error.message)

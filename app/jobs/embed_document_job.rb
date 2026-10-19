@@ -4,9 +4,15 @@ class EmbedDocumentJob < ApplicationJob
   # Its own queue, served by a single thread so Embeddings::RateLimiter holds.
   queue_as :embeddings
 
-  # Never embed the same document twice at once, so duplicate jobs don't pay for the same chunks.
+  # Never embed a document while another embed or ingest job for it runs, so duplicate jobs
+  # don't pay for the same chunks and an ingest can't delete chunks mid-batch.
   # The key covers the document, not the strategy; that's fine while raw is the only strategy.
-  limits_concurrency to: 1, key: ->(document, **) { document }
+  include DocumentSerialized
+
+  # A re-ingest deleted chunks mid-run and queued a fresh job, which embeds whatever this one didn't.
+  discard_on ActiveRecord::InvalidForeignKey do |job, error|
+    Rails.logger.warn "EmbedDocumentJob for #{job.arguments.first.to_gid} discarded: #{error.message}"
+  end
 
   # Rate limits, server errors, and timeouts retry, after Retry-After when the provider sent one.
   # retry_on can't do that: its wait proc sees the attempt count but not the error.
@@ -18,6 +24,8 @@ class EmbedDocumentJob < ApplicationJob
   end
 
   def perform(document, strategy: "raw")
+    # Clear the queued flag before reading the chunks, so a re-ingest during the run queues a follow-up.
+    Document.where(id: document.id).update_all(embed_queued_at: nil)
     Embeddings::DocumentEmbedder.new.call(document, strategy: strategy)
   end
 
