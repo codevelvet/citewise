@@ -24,23 +24,23 @@ namespace :citewise do
         document.metadata = document.metadata.merge("collection" => collection)
         document.file.attach(io: path.open, filename: path.basename.to_s, content_type: "text/markdown")
         document.save!
-        IngestDocumentJob.perform_later(document)
+        document.enqueue_ingest
       end
 
       puts "Created #{counts[:created]}, updated #{counts[:updated]}, unchanged #{counts[:unchanged]}"
     end
   end
 
-  desc "Enqueue forced re-ingestion of outdated and failed documents, or of every document with citewise:reingest[all]"
+  desc "Enqueue re-ingestion of outdated and failed documents, or forced re-ingestion of every document with citewise:reingest[all]"
   task :reingest, [ :scope ] => :environment do |_task, args|
     # Documents without a file are uploads still in progress, not failed ingestions.
     documents = Document.where.associated(:file_attachment)
-    documents = documents.merge(Document.outdated.or(Document.failed)) unless args[:scope] == "all"
+    all = args[:scope] == "all"
+    documents = documents.merge(Document.outdated.or(Document.failed)) unless all
 
     count = 0
     documents.find_each do |document|
-      IngestDocumentJob.perform_later(document, force: true)
-      count += 1
+      count += 1 if document.enqueue_ingest(force: all)
     end
     puts "Enqueued #{count}"
   end
@@ -109,8 +109,9 @@ namespace :citewise do
     if args[:dry_run] == "dry_run"
       puts "Dry run: nothing enqueued"
     else
-      documents.each { |document| EmbedDocumentJob.perform_later(document, strategy: strategy) }
-      puts "Enqueued #{documents.size}"
+      # Documents whose embed job is already waiting aren't counted.
+      count = documents.count { |document| document.enqueue_embed(strategy: strategy) }
+      puts "Enqueued #{count}"
     end
   end
 end

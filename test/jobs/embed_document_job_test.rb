@@ -73,4 +73,54 @@ class EmbedDocumentJobTest < ActiveJob::TestCase
     assert_equal [ first.job_id, other.job_id ].sort, SolidQueue::ReadyExecution.includes(:job).map { it.job.active_job_id }.sort
     assert_equal [ second.job_id ], SolidQueue::BlockedExecution.includes(:job).map { it.job.active_job_id }
   end
+
+  test "an ingest job for the same document waits for an embed" do
+    embed, ingest, other = EmbedDocumentJob.new(@document), IngestDocumentJob.new(@document), IngestDocumentJob.new(documents(:pending_upload))
+
+    [ embed, ingest, other ].each { |job| SolidQueue::Job.enqueue(job) }
+
+    assert_equal [ embed.job_id, other.job_id ].sort, SolidQueue::ReadyExecution.includes(:job).map { it.job.active_job_id }.sort
+    assert_equal [ ingest.job_id ], SolidQueue::BlockedExecution.includes(:job).map { it.job.active_job_id }
+  end
+
+  test "the lock covers queue wait plus a long embed" do
+    freeze_time do
+      job = EmbedDocumentJob.new(@document)
+      SolidQueue::Job.enqueue(job)
+
+      assert_equal DocumentSerialized::LOCK_DURATION.from_now, SolidQueue::Semaphore.find_by!(key: job.concurrency_key).expires_at
+    end
+  end
+
+  test "discards the job with a warning when a chunk is deleted mid-run" do
+    log = StringIO.new
+    logger, Rails.logger = Rails.logger, ActiveSupport::Logger.new(log)
+
+    raised = with_fake_embedder(ChunkDeletingEmbedder.new(@document)) do
+      EmbedDocumentJob.perform_now(@document)
+      nil
+    rescue ActiveRecord::InvalidForeignKey => error
+      error
+    end
+
+    assert_nil raised
+    assert_no_enqueued_jobs
+    assert_match(/EmbedDocumentJob.*discarded/, log.string)
+  ensure
+    Rails.logger = logger
+  end
+
+  private
+    # Deletes one of the document's chunks while its batch is out, as a concurrent re-ingest would.
+    class ChunkDeletingEmbedder < FakeEmbedder
+      def initialize(document)
+        super()
+        @document = document
+      end
+
+      def embed_documents(texts)
+        Chunk.where(id: @document.chunks.order(:position).first.id).delete_all
+        super
+      end
+    end
 end

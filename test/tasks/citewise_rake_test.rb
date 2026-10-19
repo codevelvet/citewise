@@ -35,6 +35,8 @@ class CitewiseRakeTest < ActiveSupport::TestCase
 
   test "re-importing the same directory updates rather than duplicates" do
     import
+    # Run the ingests: a request while one is still waiting is coalesced into it.
+    perform_enqueued_jobs(only: IngestDocumentJob)
     clear_enqueued_jobs
 
     output = nil
@@ -58,8 +60,36 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_enqueued_jobs(2, only: IngestDocumentJob) { output = reingest }
 
     assert_includes output, "Enqueued 2"
-    assert_enqueued_with(job: IngestDocumentJob, args: [ outdated, { force: true } ])
-    assert_enqueued_with(job: IngestDocumentJob, args: [ failed, { force: true } ])
+    assert_enqueued_with(job: IngestDocumentJob, args: [ outdated ])
+    assert_enqueued_with(job: IngestDocumentJob, args: [ failed ])
+  end
+
+  test "running reingest twice enqueues one job per document" do
+    create_document("outdated", chunker_fingerprint: "0:000000000000", ingestion_status: :ingested)
+    create_document("failed", chunker_fingerprint: Ingestion::DocumentIngester.new.fingerprint, ingestion_status: :failed)
+
+    output = nil
+    assert_enqueued_jobs(2, only: IngestDocumentJob) { reingest; output = reingest }
+    assert_includes output, "Enqueued 0"
+  end
+
+  test "re-importing a changed file while its ingest is waiting adds no job" do
+    assert_enqueued_jobs 2, only: IngestDocumentJob do
+      import
+      @dir.join("intro.md").write("# Intro\n\nWelcome back.\n")
+      import
+    end
+  end
+
+  test "running embed twice enqueues one job per document" do
+    stale = create_document("stale", ingestion_status: :ingested)
+    stale.chunks.create!(position: 0, content: "Body.", token_count: 2, content_hash: "abc")
+    embedder = Embeddings::DocumentEmbedder.new(embedder: FakeEmbedder.new, limiter: Embeddings::RateLimiter.new(requests_per_minute: 10, tokens_per_minute: 10_000))
+    documents(:handbook, :leave_policy).each { embedder.call(it, strategy: :raw) }
+
+    output = nil
+    assert_enqueued_jobs(1, only: EmbedDocumentJob) { embed; output = embed }
+    assert_includes output, "Enqueued 0"
   end
 
   test "reingest all enqueues every document that has a file" do

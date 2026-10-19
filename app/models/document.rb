@@ -8,6 +8,37 @@ class Document < ApplicationRecord
   # Chunked by other code or settings than the current chunker's, or never chunked.
   scope :outdated, -> { where(chunker_fingerprint: nil).or(where.not(chunker_fingerprint: Ingestion::DocumentIngester.new.fingerprint)) }
 
+  # A queued flag this old most likely belongs to a job that died before it started, so it can
+  # be claimed again. Reclaiming too early only adds one job that finds nothing to do, because
+  # jobs work from the document's current state.
+  QUEUED_FLAG_STALE_AFTER = 1.hour
+
   validates :title, presence: true
   validates :source_uri, uniqueness: { scope: :source_type }, allow_nil: true
+
+  # Queues IngestDocumentJob unless one is already waiting. Returns the job, or false if
+  # it queued none. force always queues, for re-chunking content that hasn't changed.
+  def enqueue_ingest(force: false)
+    if force
+      IngestDocumentJob.perform_later(self, force: true)
+    elsif claim_queued_flag(:ingest_queued_at)
+      IngestDocumentJob.perform_later(self)
+    else
+      false
+    end
+  end
+
+  # Queues EmbedDocumentJob unless one is already waiting. Returns the job, or false if it queued none.
+  # One flag per document, not per strategy, is enough while raw is the only strategy.
+  def enqueue_embed(strategy: "raw")
+    claim_queued_flag(:embed_queued_at) && EmbedDocumentJob.perform_later(self, strategy: strategy)
+  end
+
+  private
+    # Atomic, so of concurrent callers exactly one claims the flag. The job clears it when it starts.
+    def claim_queued_flag(column)
+      Document.where(column => nil).or(Document.where(column => ...QUEUED_FLAG_STALE_AFTER.ago))
+        .where(id: id)
+        .update_all(column => Time.current) == 1
+    end
 end
