@@ -1,6 +1,9 @@
 require "test_helper"
 
 class DocumentTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+  include FakeEmbedder::TestHelper
+
   test "fixtures are valid" do
     assert documents(:handbook).valid?
     assert documents(:pending_upload).valid?
@@ -63,6 +66,66 @@ class DocumentTest < ActiveSupport::TestCase
     assert_includes Document.outdated, old
     assert_includes Document.outdated, documents(:handbook)
     assert_not_includes Document.outdated, current
+  end
+
+  test "enqueue_ingest coalesces repeated calls into one waiting job" do
+    document = documents(:handbook)
+    3.times { document.enqueue_ingest }
+
+    assert_enqueued_jobs 1, only: IngestDocumentJob
+    assert_enqueued_with job: IngestDocumentJob, args: [ document ]
+  end
+
+  test "enqueue_ingest after the job starts queues a follow-up" do
+    document = documents(:handbook)
+    document.enqueue_ingest
+    perform_enqueued_jobs
+    document.enqueue_ingest
+
+    assert_performed_jobs 1, only: IngestDocumentJob
+    assert_enqueued_jobs 1, only: IngestDocumentJob
+  end
+
+  test "enqueue_ingest reclaims a stale queued flag" do
+    document = documents(:handbook)
+    document.update_column(:ingest_queued_at, Document::QUEUED_FLAG_STALE_AFTER.ago - 1.minute)
+    document.enqueue_ingest
+
+    assert_enqueued_jobs 1, only: IngestDocumentJob
+  end
+
+  test "enqueue_ingest with force always queues" do
+    document = documents(:handbook)
+    document.update_column(:ingest_queued_at, Time.current)
+    document.enqueue_ingest(force: true)
+
+    assert_enqueued_with job: IngestDocumentJob, args: [ document, { force: true } ]
+  end
+
+  test "enqueue_embed coalesces repeated calls into one waiting job" do
+    document = documents(:handbook)
+    3.times { document.enqueue_embed(strategy: "raw") }
+
+    assert_enqueued_jobs 1, only: EmbedDocumentJob
+    assert_enqueued_with job: EmbedDocumentJob, args: [ document, { strategy: "raw" } ]
+  end
+
+  test "enqueue_embed after the job starts queues a follow-up" do
+    document = documents(:handbook)
+    document.enqueue_embed
+    with_fake_embedder { perform_enqueued_jobs }
+    document.enqueue_embed
+
+    assert_performed_jobs 1, only: EmbedDocumentJob
+    assert_enqueued_jobs 1, only: EmbedDocumentJob
+  end
+
+  test "enqueue_embed reclaims a stale queued flag" do
+    document = documents(:handbook)
+    document.update_column(:embed_queued_at, Document::QUEUED_FLAG_STALE_AFTER.ago - 1.minute)
+    document.enqueue_embed
+
+    assert_enqueued_jobs 1, only: EmbedDocumentJob
   end
 
   test "allows many documents without a source_uri" do

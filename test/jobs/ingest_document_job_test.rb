@@ -37,4 +37,59 @@ class IngestDocumentJobTest < ActiveJob::TestCase
     assert_equal [ first.job_id, unrelated.job_id ].sort, SolidQueue::ReadyExecution.includes(:job).map { it.job.active_job_id }.sort
     assert_equal [ second.job_id ], SolidQueue::BlockedExecution.includes(:job).map { it.job.active_job_id }
   end
+
+  test "an embed job for the same document waits for an ingest" do
+    ingest, embed, other = IngestDocumentJob.new(@document), EmbedDocumentJob.new(@document), EmbedDocumentJob.new(documents(:handbook))
+
+    [ ingest, embed, other ].each { |job| SolidQueue::Job.enqueue(job) }
+
+    assert_equal [ ingest.job_id, other.job_id ].sort, SolidQueue::ReadyExecution.includes(:job).map { it.job.active_job_id }.sort
+    assert_equal [ embed.job_id ], SolidQueue::BlockedExecution.includes(:job).map { it.job.active_job_id }
+  end
+
+  test "the lock covers queue wait plus a long embed" do
+    freeze_time do
+      job = IngestDocumentJob.new(@document)
+      SolidQueue::Job.enqueue(job)
+
+      assert_equal DocumentSerialized::LOCK_DURATION.from_now, SolidQueue::Semaphore.find_by!(key: job.concurrency_key).expires_at
+    end
+  end
+
+  test "a request made while the job is running queues one follow-up" do
+    @document.enqueue_ingest
+    chunker = RequestingChunker.new(@document)
+
+    with_ingester(Ingestion::DocumentIngester.new(chunker: chunker)) do
+      assert_enqueued_jobs(1, only: IngestDocumentJob) { IngestDocumentJob.perform_now(@document) }
+    end
+    assert chunker.called
+  end
+
+  private
+    def with_ingester(ingester)
+      Ingestion::DocumentIngester.define_singleton_method(:new) { |*| ingester }
+      yield
+    ensure
+      Ingestion::DocumentIngester.singleton_class.remove_method(:new)
+    end
+
+    # Asks for another ingest mid-run, as an upload or import would.
+    class RequestingChunker
+      attr_reader :called
+
+      def initialize(document)
+        @document = document
+      end
+
+      def call(*, **)
+        @called = true
+        @document.enqueue_ingest
+        []
+      end
+
+      def fingerprint
+        "0:111111111111"
+      end
+    end
 end

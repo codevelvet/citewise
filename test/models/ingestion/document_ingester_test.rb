@@ -2,6 +2,7 @@ require "test_helper"
 
 class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
+  include FakeEmbedder::TestHelper
 
   setup do
     @markdown = file_fixture("handbook/gitlabengineering.md").read
@@ -49,10 +50,32 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
   end
 
   test "enqueues embedding after an ingestion that changed the chunks" do
-    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document ]) { @ingester.call(@document) }
+    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document, { strategy: "raw" } ]) { @ingester.call(@document) }
+    # Run the embed job so the next ingestion isn't coalesced into it.
+    with_fake_embedder { perform_enqueued_jobs }
 
     attach(@document, "# Changed\n\nNew body.\n")
-    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document ]) { @ingester.call(@document) }
+    assert_enqueued_with(job: EmbedDocumentJob, args: [ @document, { strategy: "raw" } ]) { @ingester.call(@document) }
+  end
+
+  test "ingesting twice before embedding runs queues one embed job" do
+    assert_enqueued_jobs 1, only: EmbedDocumentJob do
+      @ingester.call(@document)
+      attach(@document, "# Changed\n\nNew body.\n")
+      @ingester.call(@document)
+    end
+  end
+
+  test "re-chunks an ingested document whose chunker fingerprint is outdated, without force" do
+    @ingester.call(@document)
+    @document.update_column(:chunker_fingerprint, "0:000000000000")
+    ingested_at = @document.reload.ingested_at
+
+    @ingester.call(@document)
+
+    @document.reload
+    assert_equal @ingester.fingerprint, @document.chunker_fingerprint
+    assert_operator @document.ingested_at, :>, ingested_at
   end
 
   test "does not enqueue embedding when ingestion is skipped or fails" do
