@@ -105,6 +105,15 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "an unexpected error marks the question failed and re-raises" do
+    @embedder.define_singleton_method(:embed_query) { |_text| raise "boom" }
+
+    assert_raises(RuntimeError) { ask }
+    question = Question.last
+    assert question.failed?
+    assert_equal "boom", question.error
+  end
+
   test "uses the default retriever and answerer" do
     question = with_fake_embedder(@embedder) { with_fake_answerer { Answering::AskService.call(QUESTION) } }
 

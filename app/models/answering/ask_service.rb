@@ -7,7 +7,7 @@ module Answering
   #
   # Synchronous: one embedding call and one Claude call. Retrieval and
   # citations store snapshots of their chunks, because re-ingesting a document
-  # deletes its chunks. When either call fails, the Question is saved as failed
+  # deletes its chunks. When anything fails, the Question is saved as failed
   # and the error is re-raised, so the caller can decide whether to retry.
   #
   # When retrieval finds no chunks, Claude isn't asked: with no sources it can
@@ -40,7 +40,7 @@ module Answering
         **answer.usage.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens)
       )
       question
-    rescue Embeddings::Embedder::Error, Answerer::Error => error
+    rescue => error
       question&.update!(status: :failed, error: error.message)
       raise
     end
