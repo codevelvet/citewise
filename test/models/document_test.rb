@@ -3,6 +3,7 @@ require "test_helper"
 class DocumentTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
   include FakeEmbedder::TestHelper
+  include StubHelper
 
   test "fixtures are valid" do
     assert documents(:handbook).valid?
@@ -102,6 +103,26 @@ class DocumentTest < ActiveSupport::TestCase
     assert_enqueued_with job: IngestDocumentJob, args: [ document, { force: true } ]
   end
 
+  test "enqueue_ingest releases the flag when enqueuing raises" do
+    document = documents(:handbook)
+    stub(IngestDocumentJob, :perform_later, ->(*, **) { raise SolidQueue::Job::EnqueueError, "insert failed" }) do
+      assert_raises(SolidQueue::Job::EnqueueError) { document.enqueue_ingest }
+    end
+
+    assert_nil document.reload.ingest_queued_at
+    document.enqueue_ingest
+    assert_enqueued_jobs 1, only: IngestDocumentJob
+  end
+
+  test "enqueue_ingest releases the flag when perform_later returns false" do
+    document = documents(:handbook)
+    stub(IngestDocumentJob, :perform_later, ->(*, **) { false }) do
+      assert_equal false, document.enqueue_ingest
+    end
+
+    assert_nil document.reload.ingest_queued_at
+  end
+
   test "enqueue_embed coalesces repeated calls into one waiting job" do
     document = documents(:handbook)
     3.times { document.enqueue_embed(strategy: "raw") }
@@ -126,6 +147,42 @@ class DocumentTest < ActiveSupport::TestCase
     document.enqueue_embed
 
     assert_enqueued_jobs 1, only: EmbedDocumentJob
+  end
+
+  test "enqueue_embed releases the flag when enqueuing raises" do
+    document = documents(:handbook)
+    stub(EmbedDocumentJob, :perform_later, ->(*, **) { raise SolidQueue::Job::EnqueueError, "insert failed" }) do
+      assert_raises(SolidQueue::Job::EnqueueError) { document.enqueue_embed }
+    end
+
+    assert_nil document.reload.embed_queued_at
+    document.enqueue_embed
+    assert_enqueued_jobs 1, only: EmbedDocumentJob
+  end
+
+  test "enqueue_embed releases the flag when perform_later returns false" do
+    document = documents(:handbook)
+    stub(EmbedDocumentJob, :perform_later, ->(*, **) { false }) do
+      assert_equal false, document.enqueue_embed
+    end
+
+    assert_nil document.reload.embed_queued_at
+  end
+
+  test "enqueue_embed releases the flag even inside an outer transaction" do
+    document = documents(:handbook)
+    Document.transaction do
+      stub(EmbedDocumentJob, :perform_later, ->(*, **) { false }) do
+        document.enqueue_embed
+      end
+    end
+
+    assert_nil document.reload.embed_queued_at
+  end
+
+  test "document jobs enqueue immediately, which enqueue_claiming's transaction relies on" do
+    assert_not IngestDocumentJob.enqueue_after_transaction_commit
+    assert_not EmbedDocumentJob.enqueue_after_transaction_commit
   end
 
   test "allows many documents without a source_uri" do

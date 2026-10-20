@@ -3,6 +3,7 @@ require "test_helper"
 class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
   include FakeEmbedder::TestHelper
+  include StubHelper
 
   setup do
     @markdown = file_fixture("handbook/gitlabengineering.md").read
@@ -262,12 +263,5 @@ class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
 
     def attach(document, markdown)
       document.file.attach(io: StringIO.new(markdown), filename: "doc.md", content_type: "text/markdown")
-    end
-
-    def stub(object, method, implementation)
-      object.define_singleton_method(method, &implementation)
-      yield
-    ensure
-      object.singleton_class.remove_method(method)
     end
 end
