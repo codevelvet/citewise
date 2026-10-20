@@ -3,6 +3,7 @@ require "test_helper"
 class DocumentTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
   include FakeEmbedder::TestHelper
+  include StubHelper
 
   test "fixtures are valid" do
     assert documents(:handbook).valid?
