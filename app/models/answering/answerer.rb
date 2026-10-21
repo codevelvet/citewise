@@ -10,6 +10,10 @@ module Answering
   #   answer.citations # => [ { chunk_id: 12, cited_text: "...", block_start: 0, block_end: 1, answer_start: 0, answer_end: 57 } ]
   #   answer.model     # => "claude-haiku-4-5"
   #   answer.usage     # => { input_tokens: 1200, output_tokens: 40, cache_read_tokens: 0, cache_write_tokens: 0 }
+  #   answer.stop_reason # => "end_turn"
+  #
+  # stop_reason is why the provider stopped writing. "max_tokens" means the
+  # text was cut off, so the answer is incomplete.
   #
   # block_start and block_end index the chunk's passages (end exclusive):
   # Chunking::Paragraphs.split(chunk.content)[block_start...block_end] are the
@@ -35,7 +39,7 @@ module Answering
 
     class PermanentError < Error; end
 
-    Answer = Data.define(:text, :citations, :model, :usage)
+    Answer = Data.define(:text, :citations, :model, :usage, :stop_reason)
 
     # The instructions for every answer, whichever provider gives it.
     SYSTEM_PROMPT = <<~PROMPT.freeze

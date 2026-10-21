@@ -19,7 +19,7 @@ class EmbedDocumentJobTest < ActiveJob::TestCase
 
   test "retries a rate-limit error after the Retry-After the provider sent" do
     fake = FakeEmbedder.new
-    fake.error = Embeddings::Embedder::TransientError.new("Voyage 429: Rate limit exceeded", retry_after: 7)
+    fake.error = Embeddings::Embedder::TransientError.new("Embedding provider 429: Rate limit exceeded", retry_after: 7)
 
     freeze_time do
       with_fake_embedder(fake) do
@@ -32,7 +32,7 @@ class EmbedDocumentJobTest < ActiveJob::TestCase
 
   test "retries a transient error without Retry-After with polynomial backoff and jitter" do
     fake = FakeEmbedder.new
-    fake.error = Embeddings::Embedder::TransientError.new("Voyage 503: Service unavailable")
+    fake.error = Embeddings::Embedder::TransientError.new("Embedding provider 503: Service unavailable")
 
     freeze_time do
       with_fake_embedder(fake) { EmbedDocumentJob.perform_now(@document) }
@@ -44,7 +44,7 @@ class EmbedDocumentJobTest < ActiveJob::TestCase
 
   test "gives up on transient errors after #{EmbedDocumentJob::ATTEMPTS} attempts" do
     fake = FakeEmbedder.new
-    fake.error = Embeddings::Embedder::TransientError.new("Voyage 503: Service unavailable")
+    fake.error = Embeddings::Embedder::TransientError.new("Embedding provider 503: Service unavailable")
     job = EmbedDocumentJob.new(@document)
     job.executions = EmbedDocumentJob::ATTEMPTS - 1
 
@@ -56,11 +56,11 @@ class EmbedDocumentJobTest < ActiveJob::TestCase
 
   test "fails at once on an authentication error" do
     fake = FakeEmbedder.new
-    fake.error = Embeddings::Embedder::PermanentError.new("Voyage 401: Provided API key is invalid.")
+    fake.error = Embeddings::Embedder::PermanentError.new("Embedding provider 401: Provided API key is invalid.")
 
     with_fake_embedder(fake) do
       error = assert_raises(Embeddings::Embedder::PermanentError) { EmbedDocumentJob.perform_now(@document) }
-      assert_equal "Voyage 401: Provided API key is invalid.", error.message
+      assert_equal "Embedding provider 401: Provided API key is invalid.", error.message
     end
     assert_no_enqueued_jobs
   end

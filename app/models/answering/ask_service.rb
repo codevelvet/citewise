@@ -5,14 +5,14 @@ module Answering
   #   question.answer    # => "Full-time employees accrue 20 days of paid leave per year."
   #   question.citations # => [ { "chunk_id" => 12, "cited_text" => "...", "answer_start" => 0, ... } ]
   #
-  # Synchronous: one embedding call and one Claude call. Retrieval and
+  # Synchronous: one embedding call and one answering call. Retrieval and
   # citations store snapshots of their chunks, because re-ingesting a document
   # deletes its chunks. When anything fails, the Question is saved as failed
   # and the error is re-raised, so the caller can decide whether to retry.
   #
-  # When retrieval finds no chunks, Claude isn't asked: with no sources it can
-  # only cite nothing or answer from general knowledge. The Question is saved as
-  # answered with NO_SOURCES_ANSWER, no model, and zero token usage.
+  # When retrieval finds no chunks, the answerer isn't called: with no sources
+  # it can only cite nothing or answer from general knowledge. The Question is
+  # saved as answered with NO_SOURCES_ANSWER, no model, and zero token usage.
   class AskService
     NO_SOURCES_ANSWER = "I couldn't find anything in the indexed documents to answer that.".freeze
 
@@ -35,7 +35,7 @@ module Answering
       answer, answer_ms = timed { @answerer.answer(text, results.map(&:chunk)) }
       chunks = results.map(&:chunk).index_by(&:id)
       question.update!(
-        status: :answered, answer: answer.text, model: answer.model, answer_ms: answer_ms,
+        status: :answered, answer: answer.text, model: answer.model, answer_ms: answer_ms, stop_reason: answer.stop_reason,
         citations: answer.citations.map { it.merge(source_of(chunks.fetch(it[:chunk_id]))) },
         **answer.usage.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens)
       )
