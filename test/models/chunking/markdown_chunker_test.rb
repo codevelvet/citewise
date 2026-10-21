@@ -292,6 +292,27 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_equal "Body.\n\n<details><summary>More</summary>", chunks.first.content
   end
 
+  test "drops HTML comments and empty tags even when a comment or attribute contains >" do
+    chunks = chunk(<<~MD)
+      Body.
+
+      <!-- just a comment -->
+
+      <!-- TODO: a -> b -->
+
+      <div title="a > b"></div>
+    MD
+
+    assert_equal "Body.", chunks.first.content
+  end
+
+  test "keeps HTML blocks with text inside tags, including entities and script or style source" do
+    blocks = [ "<div>\n<p>Real text</p>\n</div>", "<div>&nbsp;</div>", "<script>track()</script>", "<style>p { color: red }</style>" ]
+    chunks = chunk("Body.\n\n#{blocks.join("\n\n")}\n")
+
+    assert_equal [ "Body.", *blocks ].join("\n\n"), chunks.first.content
+  end
+
   test "drops mermaid diagrams and logs how many were skipped" do
     log = StringIO.new
     chunks = chunk(<<~MD, logger: Logger.new(log))
@@ -324,7 +345,7 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
   end
 
   test "fingerprint combines the version with a short settings digest" do
-    assert_match(/\A1:\h{12}\z/, Chunking::MarkdownChunker.new.fingerprint)
+    assert_match(/\A2:\h{12}\z/, Chunking::MarkdownChunker.new.fingerprint)
   end
 
   test "fingerprint is stable for the same settings" do
