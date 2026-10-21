@@ -1,0 +1,63 @@
+<div class="flex flex-wrap items-start gap-8">
+  <article aria-label="Answer" class="min-w-0 flex-[999_1_560px] rounded-xl border border-line bg-white p-6 sm:p-8">
+    <% if question.incomplete? %>
+      <% title, explanation = incomplete_notice(question) %>
+      <div role="note" class="mb-7 flex items-start gap-3 rounded-[10px] border border-warning-line bg-warning px-4 py-3.5">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" class="mt-0.5 flex-none"><path d="M10 2.5l8 14H2l8-14z" stroke="#8A4B00" stroke-width="1.6" stroke-linejoin="round"></path><path d="M10 8v4M10 14.5v.5" stroke="#8A4B00" stroke-width="1.6" stroke-linecap="round"></path></svg>
+        <div class="flex flex-col gap-1">
+          <strong class="font-semibold text-warning-ink"><%= title %></strong>
+          <span class="text-sm text-warning-ink"><%= explanation %></span>
+          <span class="text-[13px] text-warning-ink/80">Stop reason: <code class="font-mono text-xs"><%= question.stop_reason %></code></span>
+        </div>
+      </div>
+    <% end %>
+
+    <div class="flex flex-col gap-[18px] font-serif text-[19px] leading-[1.7] break-words">
+      <% cited.paragraphs.each do |parts| %>
+        <p class="whitespace-pre-line"><%= cited_paragraph(parts) %></p>
+      <% end %>
+    </div>
+
+    <div class="mt-7 flex flex-col gap-4 border-t border-skeleton pt-4 text-[13px] text-muted">
+      <% if cited.cited? %>
+        <p>Numbered sentences come from the documents. Select a number to see the passage. Sentences without a number connect the cited points.</p>
+      <% else %>
+        <p>This answer doesn't cite any passages from the documents.</p>
+      <% end %>
+      <% if question.incomplete? %>
+        <div class="flex flex-wrap items-center gap-3">
+          <%= link_to "Ask again", new_question_path(text: question.text),
+                class: "inline-flex h-11 items-center rounded-lg border border-field bg-white px-[18px] text-[15px] font-semibold text-ink no-underline" %>
+          <span>A narrower question usually gets a complete answer.</span>
+        </div>
+      <% end %>
+    </div>
+  </article>
+
+  <% if cited.sources.any? %>
+    <aside aria-labelledby="sources-heading" class="flex min-w-0 flex-[1_1_340px] flex-col gap-3">
+      <h2 id="sources-heading" class="mb-1 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">Sources</h2>
+      <% cited.sources.each do |source| %>
+        <section id="source-<%= source.number %>" data-source-number="<%= source.number %>"
+                 aria-labelledby="source-<%= source.number %>-title" class="scroll-mt-4 rounded-xl border border-line bg-white target:border-link">
+          <div class="flex items-start gap-3 px-4 py-3.5">
+            <span aria-hidden="true" class="inline-flex size-7 flex-none items-center justify-center rounded-md bg-marker text-[13px] font-semibold text-marker-ink"><%= source.number %></span>
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <h3 id="source-<%= source.number %>-title" class="font-semibold"><span class="sr-only">Source <%= source.number %>: </span><%= source.document_title %></h3>
+              <p class="text-[13px] leading-[1.4] break-words text-muted"><%= source.source_title %></p>
+            </div>
+          </div>
+          <div class="flex flex-col gap-3 px-4 pb-4 sm:pl-14">
+            <% source.passages.each do |passage| %>
+              <blockquote data-citation-ids="<%= passage.citation_ids.join(" ") %>" class="flex flex-col gap-2 rounded-lg bg-canvas p-3 text-sm leading-[1.6] break-words">
+                <% passage.paragraphs.each do |paragraph| %>
+                  <p class="whitespace-pre-line"><%= paragraph %></p>
+                <% end %>
+              </blockquote>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+    </aside>
+  <% end %>
+</div>

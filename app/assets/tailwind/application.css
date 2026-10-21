@@ -1,1 +1,26 @@
 @import "tailwindcss";
+
+/* The ask page's design tokens. System fonts only: no external font requests. */
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-canvas: #F7F8FA;
+  --color-line: #E3E6EA;
+  --color-field: #C9CED6;
+  --color-ink: #1B1F24;
+  --color-ink-soft: #3D4550;
+  --color-muted: #5A6370;
+  --color-link: #1F5FBF;
+  --color-link-hover: #174A94;
+  --color-skeleton: #EEF0F3;
+  --color-marker: #EEF3FC;
+  --color-marker-line: #B9CBEA;
+  --color-marker-ink: #1F4FA0;
+  --color-warning: #FFF4E5;
+  --color-warning-line: #F0C27A;
+  --color-warning-ink: #6B3A00;
+  --color-warning-icon: #8A4B00;
+  --color-danger: #A1262B;
+}

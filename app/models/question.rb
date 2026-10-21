@@ -14,6 +14,10 @@ class Question < ApplicationRecord
 
   validates :text, presence: true, length: { maximum: MAX_TEXT_LENGTH }
 
+  # Replaces the answer section on open show pages when the status changes. fail_abandoned's
+  # update_all skips this; a page left open that long shows the change on reload.
+  after_update_commit :broadcast_answer, if: :saved_change_to_status?
+
   # Stop reasons for a finished answer. Anything else, including reasons a
   # future SDK adds, is flagged: a needless warning is cheaper than a cut-off
   # answer shown as whole. Add "stop_sequence" here if stop sequences are set.
@@ -34,5 +38,10 @@ class Question < ApplicationRecord
   def abandoned? = failed? && error == ABANDONED_ERROR
 
   # The answer split into text and citation markers, and its sources, for the page.
-  def cited_answer = @cited_answer ||= CitedAnswer.new(answer, citations)
+  def cited_answer = CitedAnswer.new(answer, citations)
+
+  private
+    def broadcast_answer
+      broadcast_render_to self, partial: "questions/answer_update", locals: { question: self }
+    end
 end

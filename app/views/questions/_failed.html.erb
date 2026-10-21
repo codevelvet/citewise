@@ -1,0 +1,28 @@
+<article aria-label="Answer" class="flex max-w-[720px] flex-col gap-4 rounded-xl border border-line bg-white p-6 sm:p-8">
+  <div class="flex items-start gap-3.5">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="mt-0.5 flex-none"><circle cx="12" cy="12" r="10" stroke="#A1262B" stroke-width="1.8"></circle><path d="M12 7v6M12 16.5v.5" stroke="#A1262B" stroke-width="1.8" stroke-linecap="round"></path></svg>
+    <div class="flex flex-col gap-1.5">
+      <% if question.abandoned? %>
+        <h2 class="text-lg font-semibold">This question timed out</h2>
+        <p class="text-ink-soft">It was still waiting for an answer after an hour, so Citewise stopped waiting. Try asking it again.</p>
+      <% else %>
+        <h2 class="text-lg font-semibold">Citewise couldn't answer this question</h2>
+        <p class="text-ink-soft">Something went wrong while finding sources or writing the answer. Your question was saved, so you can try it again.</p>
+      <% end %>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-3 sm:pl-[38px]">
+    <%# A new Question, so this one stays a true record of what happened. %>
+    <%= button_to "Try again", questions_path, params: { question: { text: question.text } }, form: { class: "contents" },
+          class: "h-11 cursor-pointer rounded-lg bg-ink px-5 font-semibold text-white" %>
+    <%= link_to "Ask something else", new_question_path,
+          class: "inline-flex h-11 items-center rounded-lg border border-field bg-white px-[18px] font-semibold text-ink no-underline" %>
+  </div>
+  <%# Provider errors can include request details, so they're shown only in development. %>
+  <% if Rails.env.development? && question.error.present? %>
+    <details class="text-[13px] text-muted sm:pl-[38px]">
+      <summary class="min-h-8 cursor-pointer">Details</summary>
+      <code class="mt-2 block rounded-md bg-canvas px-3 py-2.5 font-mono text-xs whitespace-pre-wrap text-ink-soft"><%= question.error %></code>
+    </details>
+  <% end %>
+</article>

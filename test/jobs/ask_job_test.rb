@@ -1,7 +1,9 @@
 require "test_helper"
+require "turbo/broadcastable/test_helper"
 
 class AskJobTest < ActiveJob::TestCase
   include FakeAnswerer::TestHelper
+  include Turbo::Broadcastable::TestHelper
 
   setup do
     @question = Question.create!(text: "How much paid leave do I get?")
@@ -16,6 +18,15 @@ class AskJobTest < ActiveJob::TestCase
 
     assert @question.reload.answered?
     assert_equal [ [ @question.text, [ chunks(:leave) ] ] ], answerer.calls
+  end
+
+  test "the answered question is broadcast to its page" do
+    broadcasts = with_fake_embedder do
+      with_fake_answerer { capture_turbo_stream_broadcasts(@question) { AskJob.perform_now(@question) } }
+    end
+
+    assert_includes broadcasts.first.at("template").inner_html, %(href="#source-1")
+    assert_equal "The answer is ready.", broadcasts.second.at("template").text
   end
 
   test "runs on the default queue" do

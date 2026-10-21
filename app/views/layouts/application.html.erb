@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title><%= content_for(:title) || "Citewise" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -23,9 +23,17 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <main class="container mx-auto mt-28 px-5 flex">
-      <%= yield %>
-    </main>
+  <body class="min-h-screen bg-canvas font-sans text-[15px] leading-normal text-ink">
+    <header class="border-b border-line bg-white">
+      <div class="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
+        <%= link_to root_path, class: "flex min-h-11 items-center gap-2.5 text-lg font-semibold text-ink no-underline" do %>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="#1F5FBF"></rect><path d="M11 8H8v12h3M17 8h3v12h-3" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span>Citewise</span>
+        <% end %>
+        <%= render "questions/header_ask" unless content_for?(:hide_header_ask) %>
+      </div>
+    </header>
+
+    <%= yield %>
   </body>
 </html>
