@@ -195,6 +195,17 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_raises(SystemExit) { ask }
   end
 
+  test "ask aborts on a question over the length limit, without embedding or answering it" do
+    answerer = FakeAnswerer.new
+    error = assert_raises(SystemExit) do
+      with_fake_embedder { with_fake_answerer(answerer) { ask("a" * (Question::MAX_TEXT_LENGTH + 1)) } }
+    end
+
+    assert_not error.success?
+    assert_empty answerer.calls
+    assert_equal 0, Question.count
+  end
+
   test "fail_abandoned_questions marks questions pending for over an hour failed" do
     abandoned = Question.create!(text: "Abandoned?", created_at: 2.hours.ago)
 

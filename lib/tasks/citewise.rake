@@ -50,6 +50,7 @@ namespace :citewise do
     # Rake splits arguments on commas, so put the question back together.
     text = [ args[:question], *args.extras ].compact.join(", ").strip
     abort %(Usage: bin/rails "citewise:ask[How much paid leave do I get?]") if text.empty?
+    abort "Question is #{text.length} characters; the limit is #{Question::MAX_TEXT_LENGTH}" if text.length > Question::MAX_TEXT_LENGTH
 
     begin
       question = Answering::AskService.call(text)

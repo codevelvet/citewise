@@ -13,6 +13,14 @@ class QuestionTest < ActiveSupport::TestCase
     assert_includes question.errors[:text], "can't be blank"
   end
 
+  test "limits text to MAX_TEXT_LENGTH characters" do
+    assert Question.new(text: "a" * Question::MAX_TEXT_LENGTH).valid?
+
+    question = Question.new(text: "a" * (Question::MAX_TEXT_LENGTH + 1))
+    assert_not question.valid?
+    assert_includes question.errors[:text], "is too long (maximum is 4000 characters)"
+  end
+
   test "fail_abandoned fails questions pending for over an hour and leaves the rest" do
     abandoned = Question.create!(text: "Abandoned?", created_at: 61.minutes.ago)
     running = Question.create!(text: "Still running?", created_at: 59.minutes.ago)
