@@ -12,6 +12,8 @@ Rails.application.routes.draw do
   # The ask page. Checked on every request, so these routes 404 while config.x.ask_page[:enabled] is off.
   constraints ->(_request) { Rails.configuration.x.ask_page[:enabled] } do
     root "questions#new"
-    resources :questions, only: %i[new create show]
+    resources :questions, only: %i[new create show] do
+      get :answer, on: :member
+    end
   end
 end

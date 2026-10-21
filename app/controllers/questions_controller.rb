@@ -25,13 +25,18 @@ class QuestionsController < ApplicationController
     end
   end
 
+  # HTML only. Turbo follows the create redirect asking for streams first, so a stream
+  # format here would answer that navigation instead of rendering the page.
   def show
+    @question = Question.find(params[:id])
+  end
+
+  # Fetched once the page's stream subscription is confirmed, in case the answer was
+  # broadcast before then. Nothing to replace while it's still pending.
+  def answer
     @question = Question.find(params[:id])
 
     respond_to do |format|
-      format.html
-      # Fetched once the page's stream subscription is confirmed, in case the answer was
-      # broadcast before then. Nothing to replace while it's still pending.
       format.turbo_stream { head :no_content if @question.pending? }
     end
   end

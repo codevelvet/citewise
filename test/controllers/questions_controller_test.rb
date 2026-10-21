@@ -108,7 +108,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#ask-top"
     assert_select "##{dom_id(question, :status)}[role=status]"
     assert_select "##{dom_id(question, :answer)}[data-question-status=pending] article[aria-busy=true]"
-    assert_select "[data-controller=answer-refresh][data-answer-refresh-url-value=?] turbo-cable-stream-source", question_path(question, format: :turbo_stream)
+    assert_select "[data-controller=answer-refresh][data-answer-refresh-url-value=?] turbo-cable-stream-source", answer_question_path(question, format: :turbo_stream)
   end
 
   test "show renders the answer with markers, wrapped spans, and one card per source" do
@@ -202,14 +202,25 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "article[aria-label=Answer] p", text: Answering::AskService::NO_SOURCES_ANSWER, count: 0
   end
 
+  test "show renders the page when a Turbo form submission follows the redirect to it" do
+    question = Question.create!(text: "How much leave?")
+
+    # Turbo's form fetch asks for streams first, and keeps that Accept header across the redirect.
+    get question_path(question), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html, application/xhtml+xml" }
+
+    assert_response :success
+    assert_equal "text/html", response.media_type
+    assert_select "h1", "How much leave?"
+  end
+
   test "the turbo_stream refresh is empty while pending, and replaces the answer once it isn't" do
     question = Question.create!(text: "How much leave?")
 
-    get question_path(question, format: :turbo_stream)
+    get answer_question_path(question, format: :turbo_stream)
     assert_response :no_content
 
     question.update!(status: :failed, error: "boom")
-    get question_path(question, format: :turbo_stream)
+    get answer_question_path(question, format: :turbo_stream)
 
     assert_response :success
     assert_equal "text/vnd.turbo-stream.html", response.media_type

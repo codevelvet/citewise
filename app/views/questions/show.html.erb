@@ -9,7 +9,7 @@
   <%= render "questions/answer", question: @question %>
 
   <%# Re-checks the answer each time the subscription is confirmed, in case it was broadcast before then. %>
-  <div data-controller="answer-refresh" data-answer-refresh-url-value="<%= question_path(@question, format: :turbo_stream) %>"
+  <div data-controller="answer-refresh" data-answer-refresh-url-value="<%= answer_question_path(@question, format: :turbo_stream) %>"
        data-answer-refresh-section-value="<%= dom_id(@question, :answer) %>">
     <%= turbo_stream_from @question %>
   </div>
