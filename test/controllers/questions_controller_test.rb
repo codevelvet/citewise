@@ -71,6 +71,9 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "create allows #{QuestionsController::LIMITS[:per_hour]} questions an hour per IP" do
+    # The default daily cap is below the hourly limit, so raise it to reach the hourly one.
+    per_day = Rails.configuration.x.ask_page[:per_day]
+    Rails.configuration.x.ask_page[:per_day] = 100
     10.times do |minute|
       travel_to (minute * 2).minutes.from_now do
         3.times { ask(ip: "203.0.113.1") }
@@ -81,11 +84,14 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     travel_to 25.minutes.from_now do
       ask(ip: "203.0.113.1")
       assert_response :too_many_requests
+      assert_select "h1", /asking faster/
     end
+  ensure
+    Rails.configuration.x.ask_page[:per_day] = per_day
   end
 
   test "create refuses everyone with 429 once #{QuestionsController::LIMITS[:per_day]} questions were asked in 24 hours" do
-    Question.insert_all(Array.new(99) { { text: "Earlier?", created_at: 1.hour.ago, updated_at: 1.hour.ago } })
+    Question.insert_all(Array.new(QuestionsController::LIMITS[:per_day] - 1) { { text: "Earlier?", created_at: 1.hour.ago, updated_at: 1.hour.ago } })
     Question.create!(text: "Yesterday?", created_at: 25.hours.ago)
 
     ask(ip: "203.0.113.1")

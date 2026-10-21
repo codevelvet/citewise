@@ -20,6 +20,23 @@ class AskPageConfigTest < ActiveSupport::TestCase
     end
   end
 
+  test "per_day defaults to 20 when CITEWISE_MAX_QUESTIONS_PER_DAY is unset or empty" do
+    assert_equal "20", ask_page(:per_day, "CITEWISE_MAX_QUESTIONS_PER_DAY" => nil)
+    assert_equal "20", ask_page(:per_day, "CITEWISE_MAX_QUESTIONS_PER_DAY" => "")
+  end
+
+  test "per_day reads CITEWISE_MAX_QUESTIONS_PER_DAY" do
+    assert_equal "50", ask_page(:per_day, "CITEWISE_MAX_QUESTIONS_PER_DAY" => "50")
+  end
+
+  test "boot fails when CITEWISE_MAX_QUESTIONS_PER_DAY isn't a positive integer" do
+    [ "0", "-1", "two", "1.5", " 2" ].each do |value|
+      output, status = load_config("puts 1", "CITEWISE_MAX_QUESTIONS_PER_DAY" => value)
+      assert_not status.success?, value
+      assert_includes output, "CITEWISE_MAX_QUESTIONS_PER_DAY must be a positive integer, got #{value.inspect}"
+    end
+  end
+
   test "the ask page is off in production unless CITEWISE_ASK_PAGE_ENABLED is true" do
     assert_equal "false", ask_page(:enabled, "RAILS_ENV" => "production", "CITEWISE_ASK_PAGE_ENABLED" => nil)
     assert_equal "false", ask_page(:enabled, "RAILS_ENV" => "production", "CITEWISE_ASK_PAGE_ENABLED" => "1")

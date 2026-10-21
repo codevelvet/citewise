@@ -57,19 +57,23 @@ module Citewise
     config.x.answering = { model: "claude-haiku-4-5", max_tokens: 1024, max_retries: 2 }
 
     # Settings for the ask page (QuestionsController) and AskJob.
-    max_concurrent_asks = ENV["CITEWISE_MAX_CONCURRENT_ASKS"].presence || "1"
-    unless max_concurrent_asks.match?(/\A[1-9]\d*\z/)
-      raise ArgumentError, "CITEWISE_MAX_CONCURRENT_ASKS must be a positive integer, got #{max_concurrent_asks.inspect}"
+    positive_integer = ->(name, default) do
+      value = ENV[name].presence || default
+      raise ArgumentError, "#{name} must be a positive integer, got #{value.inspect}" unless value.match?(/\A[1-9]\d*\z/)
+
+      Integer(value, 10)
     end
     config.x.ask_page = {
       # Off in production unless CITEWISE_ASK_PAGE_ENABLED=true; when off, its routes return 404.
       enabled: !Rails.env.production? || ENV["CITEWISE_ASK_PAGE_ENABLED"] == "true",
       # AskJobs running at once, across every worker process. Changing it takes a restart of bin/jobs.
-      max_concurrent_asks: Integer(max_concurrent_asks, 10),
-      # Questions one IP address may ask, and questions everyone together may ask in 24 hours.
+      max_concurrent_asks: positive_integer.("CITEWISE_MAX_CONCURRENT_ASKS", "1"),
+      # Questions one IP address may ask.
       per_minute: 3,
       per_hour: 30,
-      per_day: 100,
+      # Questions everyone together may ask in 24 hours. It protects the $20 API budget, so it
+      # starts low: 20 questions cost about $0.22 a day at worst. Changing it takes a restart.
+      per_day: positive_integer.("CITEWISE_MAX_QUESTIONS_PER_DAY", "20"),
       # Where the per-IP counts live; nil means Rails.cache. config/environments/test.rb sets a real store.
       rate_limit_store: nil
     }
