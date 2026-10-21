@@ -103,7 +103,7 @@ module Chunking
       # nil for a block with no real content, such as an HTML wrapper <div> or a lone shortcode.
       def block(node, lines)
         text = clean(node, source(node, lines))
-        return if text.blank? || (node.type == :html_block && text.gsub(HTML_TAG, "").blank?)
+        return if text.blank? || (node.type == :html_block && text.gsub(/[<>]/, "").blank?)
 
         items = node.type == :list ? node.map { |item| clean(item, source(item, lines)) }.compact_blank : [ text ]
         Block.new(type: node.type, text: text, items: items)
