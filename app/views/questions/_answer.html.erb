@@ -1,0 +1,13 @@
+<section id="<%= dom_id(question, :answer) %>" data-question-status="<%= question.status %>">
+  <p class="mb-6 text-sm text-muted"><%= question_meta(question) %></p>
+
+  <% if question.pending? %>
+    <%= render "questions/pending", question: question %>
+  <% elsif question.failed? %>
+    <%= render "questions/failed", question: question %>
+  <% elsif question.retrieval.empty? %>
+    <%= render "questions/no_sources", question: question %>
+  <% else %>
+    <%= render "questions/answered", question: question, cited: question.cited_answer %>
+  <% end %>
+</section>

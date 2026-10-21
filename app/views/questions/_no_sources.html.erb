@@ -1,0 +1,15 @@
+<article aria-label="Answer" class="flex max-w-[720px] flex-col gap-4 rounded-xl border border-line bg-white p-6 sm:p-8">
+  <div class="flex items-start gap-3.5">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" class="mt-0.5 flex-none"><circle cx="12" cy="12" r="10" stroke="#5A6370" stroke-width="1.8"></circle><path d="M12 7v6M12 16.5v.5" stroke="#5A6370" stroke-width="1.8" stroke-linecap="round"></path></svg>
+    <div class="flex flex-col gap-1.5">
+      <h2 class="text-lg font-semibold">No matching passages</h2>
+      <p class="text-ink-soft">Citewise couldn't find anything in the indexed documents to answer that, so it didn't guess. Try different wording, or check that the documents you need are indexed.</p>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-3 sm:pl-[38px]">
+    <%= link_to "Edit question", new_question_path(text: question.text),
+          class: "inline-flex h-11 items-center rounded-lg bg-ink px-5 font-semibold text-white no-underline" %>
+    <%= link_to "Ask something else", new_question_path,
+          class: "inline-flex h-11 items-center rounded-lg border border-field bg-white px-[18px] font-semibold text-ink no-underline" %>
+  </div>
+</article>

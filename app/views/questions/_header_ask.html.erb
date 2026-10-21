@@ -1,0 +1,6 @@
+<%= form_with scope: :question, url: questions_path, class: "flex min-w-0 flex-[1_1_320px] gap-2" do |form| %>
+  <%= form.label :text, "Ask a question", for: "ask-top", class: "sr-only" %>
+  <%= form.text_field :text, id: "ask-top", value: nil, maxlength: Question::MAX_TEXT_LENGTH, required: true, placeholder: "Ask another question",
+        class: "h-11 min-w-0 flex-auto rounded-lg border border-field bg-white px-3.5 text-ink" %>
+  <%= form.submit "Ask", name: nil, class: "h-11 cursor-pointer rounded-lg bg-ink px-5 font-semibold text-white" %>
+<% end %>

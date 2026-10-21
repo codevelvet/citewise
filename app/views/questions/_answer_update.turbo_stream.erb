@@ -1,0 +1,2 @@
+<%= turbo_stream.replace dom_id(question, :answer), partial: "questions/answer", locals: { question: question } %>
+<%= turbo_stream.update dom_id(question, :status), answer_status_message(question) %>

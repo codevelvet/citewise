@@ -1,6 +1,10 @@
 require "test_helper"
+require "turbo/broadcastable/test_helper"
 
 class QuestionTest < ActiveSupport::TestCase
+  # turbo-rails includes this only once Action Cable has loaded, which depends on test order.
+  include Turbo::Broadcastable::TestHelper
+
   test "starts pending with empty retrieval and citations" do
     question = Question.create!(text: "How much paid leave do I get?")
     assert question.pending?
@@ -42,6 +46,36 @@ class QuestionTest < ActiveSupport::TestCase
     assert_equal "Still pending after 1 hour: the process answering it likely died", abandoned.error
     assert running.reload.pending?
     assert answered.reload.answered?
+  end
+
+  test "abandoned only when the sweep failed it" do
+    swept = Question.create!(text: "Abandoned?", created_at: 2.hours.ago)
+    Question.fail_abandoned
+
+    assert swept.reload.abandoned?
+    assert_not Question.new(status: :failed, error: "Answering provider 529: Overloaded").abandoned?
+    assert_not Question.new(status: :pending).abandoned?
+  end
+
+  test "broadcasts a replacement of its answer section, and a status message, when its status changes" do
+    question = Question.create!(text: "How much leave?")
+
+    broadcasts = capture_turbo_stream_broadcasts(question) { question.update!(status: :failed, error: "boom") }
+
+    replace, update = broadcasts
+    assert_equal [ "replace", "answer_question_#{question.id}" ], [ replace["action"], replace["target"] ]
+    assert_includes replace.at("template").inner_html, %(data-question-status="failed")
+    assert_equal [ "update", "status_question_#{question.id}", "Citewise couldn't answer this question." ],
+                 [ update["action"], update["target"], update.at("template").text ]
+  end
+
+  test "doesn't broadcast when other attributes change, or when the sweep fails it" do
+    question = Question.create!(text: "How much leave?", created_at: 2.hours.ago)
+
+    assert_no_turbo_stream_broadcasts(question) do
+      question.update!(retrieval: [ { chunk_id: 1 } ], retrieval_ms: 12)
+      Question.fail_abandoned
+    end
   end
 
   test "rejects an unknown status" do

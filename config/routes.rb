@@ -9,6 +9,11 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  # The ask page. Checked on every request, so these routes 404 while config.x.ask_page[:enabled] is off.
+  constraints ->(_request) { Rails.configuration.x.ask_page[:enabled] } do
+    root "questions#new"
+    resources :questions, only: %i[new create show] do
+      get :answer, on: :member
+    end
+  end
 end

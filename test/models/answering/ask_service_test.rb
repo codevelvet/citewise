@@ -163,6 +163,44 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_match(/Question #{Question.last.id} failed: RuntimeError: boom/, log.string)
   end
 
+  test "answers an existing pending question" do
+    question = Question.create!(text: QUESTION)
+
+    assert_no_difference -> { Question.count } do
+      assert_same question, Answering::AskService.answer(question, retriever: Retrieval::Retriever.new(embedder: @embedder), answerer: FakeAnswerer.new)
+    end
+    question.reload
+    assert question.answered?
+    assert_equal "claude-haiku-4-5", question.model
+    assert_equal chunks(:leave).id, question.citations.first["chunk_id"]
+  end
+
+  test "an error in keep_pending re-raises and leaves the question pending" do
+    failure = Embeddings::Embedder::TransientError.new("Embedding provider 429: Slow down", retry_after: 20)
+    @embedder.define_singleton_method(:embed_query) { |_text| raise failure }
+    question = Question.create!(text: QUESTION)
+
+    raised = assert_raises(Embeddings::Embedder::TransientError) do
+      Answering::AskService.answer(question, keep_pending: [ Embeddings::Embedder::TransientError ],
+                                   retriever: Retrieval::Retriever.new(embedder: @embedder), answerer: FakeAnswerer.new)
+    end
+    assert_same failure, raised
+    assert question.reload.pending?
+    assert_nil question.error
+  end
+
+  test "an error not in keep_pending still fails the question" do
+    @embedder.define_singleton_method(:embed_query) { |_text| raise Embeddings::Embedder::PermanentError, "Embedding provider 401: Bad key" }
+    question = Question.create!(text: QUESTION)
+
+    assert_raises(Embeddings::Embedder::PermanentError) do
+      Answering::AskService.answer(question, keep_pending: [ Embeddings::Embedder::TransientError ],
+                                   retriever: Retrieval::Retriever.new(embedder: @embedder), answerer: FakeAnswerer.new)
+    end
+    assert question.reload.failed?
+    assert_equal "Embedding provider 401: Bad key", question.error
+  end
+
   test "uses the default retriever and answerer" do
     question = with_fake_embedder(@embedder) { with_fake_answerer { Answering::AskService.call(QUESTION) } }
 

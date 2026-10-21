@@ -1,0 +1,38 @@
+<% content_for :title, "Citewise: ask a question" %>
+<% content_for :hide_header_ask, true %>
+
+<main class="mx-auto max-w-[720px] px-6 pt-16 pb-16 sm:pt-24">
+  <h1 class="mb-3 font-serif text-[32px] leading-tight font-semibold tracking-[-0.01em] sm:text-[40px]">Ask the handbook</h1>
+  <p class="mb-8 max-w-[560px] text-[17px] text-muted">Answers come only from the indexed documents, and every cited sentence links to the passage it came from.</p>
+
+  <%= form_with model: @question, url: questions_path, data: { controller: "character-count" },
+        class: "flex flex-col gap-2 rounded-xl border border-field bg-white p-2" do |form| %>
+    <%= form.label :text, "Your question", class: "px-2 pt-2 text-[13px] font-semibold text-muted" %>
+    <% if @question.errors[:text].any? %>
+      <p id="question-errors" role="alert" class="px-2 text-sm text-danger">Your question <%= @question.errors[:text].to_sentence %>.</p>
+    <% end %>
+    <%= form.text_area :text, rows: 3, maxlength: Question::MAX_TEXT_LENGTH, required: true, autofocus: true,
+          placeholder: "For example: how long does an interim manager role last?",
+          aria: { describedby: [ ("question-errors" if @question.errors[:text].any?), "question-count" ].compact.join(" "),
+                  invalid: @question.errors[:text].any? || nil },
+          data: { character_count_target: "input", action: "character-count#update" },
+          class: "min-h-21 resize-y border-0 bg-transparent px-2 py-1 text-[17px] text-ink" %>
+    <div class="flex flex-wrap items-center justify-between gap-3 pl-2">
+      <span id="question-count" class="text-[13px] text-muted" data-character-count-target="output">Up to <%= number_with_delimiter(Question::MAX_TEXT_LENGTH) %> characters</span>
+      <%= form.submit "Ask", name: nil, class: "h-11 cursor-pointer rounded-lg bg-ink px-6 font-semibold text-white" %>
+    </div>
+  <% end %>
+
+  <h2 class="mt-10 mb-3 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">Try one of these</h2>
+  <div class="flex flex-col gap-2">
+    <% [ "How can a senior engineer try out engineering management?",
+         "What are the three components of career development?",
+         "Can a team member be on loan to another team?" ].each do |example| %>
+      <%= link_to new_question_path(text: example),
+            class: "flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-4 py-2 text-ink no-underline hover:border-field" do %>
+        <%= example %>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" class="flex-none"><path d="M6 3l5 5-5 5" stroke="#5A6370" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <% end %>
+    <% end %>
+  </div>
+</main>

@@ -1,0 +1,13 @@
+<% content_for :title, "Citewise: too many questions" %>
+
+<main class="mx-auto max-w-[720px] px-6 pt-16 pb-16">
+  <div class="flex flex-col gap-2 rounded-xl border border-line bg-white p-8">
+    <% if limit == :everyone %>
+      <h1 class="text-[22px] font-semibold">Citewise has answered all the questions it can for today</h1>
+      <p class="text-ink-soft">To keep costs in check, it answers a limited number of questions each day. Please try again later.</p>
+    <% else %>
+      <h1 class="text-[22px] font-semibold">You're asking faster than Citewise can answer</h1>
+      <p class="text-ink-soft">Please wait a minute, then ask again. Your earlier questions are still being answered.</p>
+    <% end %>
+  </div>
+</main>

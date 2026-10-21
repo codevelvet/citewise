@@ -1,0 +1,24 @@
+<div class="flex flex-wrap items-start gap-8">
+  <article aria-label="Answer" aria-busy="true" class="min-w-0 flex-[999_1_560px] rounded-xl border border-line bg-white p-6 sm:p-8">
+    <div class="mb-7 flex items-center gap-3 text-ink-soft">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true" class="flex-none motion-safe:animate-spin"><circle cx="10" cy="10" r="8" stroke="#E3E6EA" stroke-width="2.5"></circle><path d="M10 2a8 8 0 0 1 8 8" stroke="#1F5FBF" stroke-width="2.5" stroke-linecap="round"></path></svg>
+      <span>Finding the relevant passages and writing an answer. This usually takes a few seconds.</span>
+    </div>
+    <noscript><p class="mb-6 text-sm text-muted">Reload this page to see the answer.</p></noscript>
+    <div aria-hidden="true" class="flex flex-col gap-3.5">
+      <% [ "w-[96%]", "w-full", "w-[88%]", "w-[62%]", "h-2.5 bg-transparent", "w-[92%]", "w-[74%]" ].each do |line| %>
+        <div class="h-3.5 rounded-full bg-skeleton <%= line %>"></div>
+      <% end %>
+    </div>
+  </article>
+
+  <aside aria-hidden="true" class="flex min-w-0 flex-[1_1_340px] flex-col gap-3">
+    <h2 class="mb-1 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">Sources</h2>
+    <% [ "w-[70%]", "w-[60%]" ].each do |width| %>
+      <div class="flex gap-3 rounded-xl border border-line bg-white p-4">
+        <div class="size-7 flex-none rounded-md bg-skeleton"></div>
+        <div class="flex flex-auto flex-col gap-2"><div class="h-3 rounded-md bg-skeleton <%= width %>"></div><div class="h-2.5 w-[85%] rounded-md bg-canvas"></div></div>
+      </div>
+    <% end %>
+  </aside>
+</div>

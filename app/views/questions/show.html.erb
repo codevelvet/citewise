@@ -1,0 +1,16 @@
+<% content_for :title, "Citewise: #{@question.text.truncate(80)}" %>
+
+<main class="mx-auto max-w-[1120px] px-6 pt-8 pb-16">
+  <h1 class="mb-1.5 text-[22px] leading-[1.3] font-semibold tracking-[-0.01em] break-words sm:text-[26px]"><%= @question.text %></h1>
+
+  <%# Persistent, so screen readers announce the change when the answer section is replaced. %>
+  <div id="<%= dom_id(@question, :status) %>" role="status" class="sr-only"><%= answer_status_message(@question) %></div>
+
+  <%= render "questions/answer", question: @question %>
+
+  <%# Re-checks the answer each time the subscription is confirmed, in case it was broadcast before then. %>
+  <div data-controller="answer-refresh" data-answer-refresh-url-value="<%= answer_question_path(@question, format: :turbo_stream) %>"
+       data-answer-refresh-section-value="<%= dom_id(@question, :answer) %>">
+    <%= turbo_stream_from @question %>
+  </div>
+</main>

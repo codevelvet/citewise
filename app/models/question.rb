@@ -5,6 +5,7 @@ class Question < ApplicationRecord
   # longer was abandoned: the process died mid-request, or it predates AskService marking
   # every error failed.
   ABANDONED_AFTER = 1.hour
+  ABANDONED_ERROR = "Still pending after #{ABANDONED_AFTER.inspect}: the process answering it likely died".freeze
 
   enum :status, { pending: "pending", answered: "answered", failed: "failed" }, validate: true
 
@@ -12,6 +13,10 @@ class Question < ApplicationRecord
   MAX_TEXT_LENGTH = 4_000
 
   validates :text, presence: true, length: { maximum: MAX_TEXT_LENGTH }
+
+  # Replaces the answer section on open show pages when the status changes. fail_abandoned's
+  # update_all skips this; a page left open that long shows the change on reload.
+  after_update_commit :broadcast_answer, if: :saved_change_to_status?
 
   # Stop reasons for a finished answer. Anything else, including reasons a
   # future SDK adds, is flagged: a needless warning is cheaper than a cut-off
@@ -26,7 +31,17 @@ class Question < ApplicationRecord
   # Marks abandoned questions failed and returns how many. Runs from config/recurring.yml
   # and bin/rails citewise:fail_abandoned_questions.
   def self.fail_abandoned
-    pending.where(created_at: ...ABANDONED_AFTER.ago).update_all(
-      status: :failed, error: "Still pending after #{ABANDONED_AFTER.inspect}: the process answering it likely died", updated_at: Time.current)
+    pending.where(created_at: ...ABANDONED_AFTER.ago).update_all(status: :failed, error: ABANDONED_ERROR, updated_at: Time.current)
   end
+
+  # Failed by fail_abandoned rather than by an error while answering.
+  def abandoned? = failed? && error == ABANDONED_ERROR
+
+  # The answer split into text and citation markers, and its sources, for the page.
+  def cited_answer = CitedAnswer.new(answer, citations)
+
+  private
+    def broadcast_answer
+      broadcast_render_to self, partial: "questions/answer_update", locals: { question: self }
+    end
 end

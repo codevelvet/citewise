@@ -50,8 +50,32 @@ module Citewise
     config.x.retrieval = { k: 8, strategy: "raw" }
 
     # Settings for Answering::Answerer.default. Keep the model a Haiku unless CLAUDE.md changes.
-    # max_retries is the one retry layer: the Anthropic SDK retries 429s and 5xx errors itself,
-    # which suits the synchronous ask flow. If answering moves into a job, set it to 0 and let the job retry.
+    # max_retries is the one retry layer for answering: the Anthropic SDK retries 429s and 5xx errors itself.
+    # It stays on even though AskJob answers in a job: AskJob retries only the query embedding's rate limits,
+    # which fail before the answerer is called. A job retry after an answering error would re-embed the
+    # question and have to reset a failed Question, and the SDK's retries are narrower and already tested.
     config.x.answering = { model: "claude-haiku-4-5", max_tokens: 1024, max_retries: 2 }
+
+    # Settings for the ask page (QuestionsController) and AskJob.
+    positive_integer = ->(name, default) do
+      value = ENV[name].presence || default
+      raise ArgumentError, "#{name} must be a positive integer, got #{value.inspect}" unless value.match?(/\A[1-9]\d*\z/)
+
+      Integer(value, 10)
+    end
+    config.x.ask_page = {
+      # Off in production unless CITEWISE_ASK_PAGE_ENABLED=true; when off, its routes return 404.
+      enabled: !Rails.env.production? || ENV["CITEWISE_ASK_PAGE_ENABLED"] == "true",
+      # AskJobs running at once, across every worker process. Changing it takes a restart of bin/jobs.
+      max_concurrent_asks: positive_integer.("CITEWISE_MAX_CONCURRENT_ASKS", "1"),
+      # Questions one IP address may ask.
+      per_minute: 3,
+      per_hour: 30,
+      # Questions everyone together may ask in 24 hours. It protects the $20 API budget, so it
+      # starts low: 20 questions cost about $0.22 a day at worst. Changing it takes a restart.
+      per_day: positive_integer.("CITEWISE_MAX_QUESTIONS_PER_DAY", "20"),
+      # Where the per-IP counts live; nil means Rails.cache. config/environments/test.rb sets a real store.
+      rate_limit_store: nil
+    }
   end
 end
