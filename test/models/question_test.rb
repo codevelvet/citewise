@@ -13,6 +13,17 @@ class QuestionTest < ActiveSupport::TestCase
     assert_includes question.errors[:text], "can't be blank"
   end
 
+  test "incomplete for every stop reason except end_turn, including ones the SDK adds later" do
+    %w[max_tokens refusal model_context_window_exceeded tool_use pause_turn stop_sequence missing something_new].each do |reason|
+      assert Question.new(stop_reason: reason).incomplete?, reason
+    end
+    assert_not Question.new(stop_reason: "end_turn").incomplete?
+  end
+
+  test "not incomplete without a stop reason: no sources, or answered before the column existed" do
+    assert_not Question.new(stop_reason: nil).incomplete?
+  end
+
   test "limits text to MAX_TEXT_LENGTH characters" do
     assert Question.new(text: "a" * Question::MAX_TEXT_LENGTH).valid?
 

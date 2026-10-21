@@ -1,7 +1,9 @@
 class Question < ApplicationRecord
-  # Answering::AskService finishes within about 32 minutes at worst (Voyage's 60s timeout
-  # plus three 600s answering attempts), so a question pending longer was abandoned: the
-  # process died mid-request, or it predates AskService marking every error failed.
+  # Answering::AskService gives up on its own after about 32 minutes (a 60s embedding
+  # timeout, then three 600s answering attempts), plus any wait a retry-after header asks
+  # for between attempts. The cutoff allows about an hour for that, so a question pending
+  # longer was abandoned: the process died mid-request, or it predates AskService marking
+  # every error failed.
   ABANDONED_AFTER = 1.hour
 
   enum :status, { pending: "pending", answered: "answered", failed: "failed" }, validate: true
@@ -11,8 +13,15 @@ class Question < ApplicationRecord
 
   validates :text, presence: true, length: { maximum: MAX_TEXT_LENGTH }
 
-  # The answerer stopped at max_tokens, so the saved answer is incomplete.
-  def truncated? = stop_reason == "max_tokens"
+  # Stop reasons for a finished answer. Anything else, including reasons a
+  # future SDK adds, is flagged: a needless warning is cheaper than a cut-off
+  # answer shown as whole. Add "stop_sequence" here if stop sequences are set.
+  COMPLETE_STOP_REASONS = %w[end_turn].freeze
+
+  # The answerer stopped before finishing, so the saved answer may be partial.
+  # nil means no stop reason was recorded: the answerer wasn't called (no
+  # sources), or the answer predates the stop_reason column. Both count as complete.
+  def incomplete? = stop_reason.present? && !COMPLETE_STOP_REASONS.include?(stop_reason)
 
   # Marks abandoned questions failed and returns how many. Runs from config/recurring.yml
   # and bin/rails citewise:fail_abandoned_questions.

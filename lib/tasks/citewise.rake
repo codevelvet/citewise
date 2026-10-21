@@ -59,7 +59,11 @@ namespace :citewise do
     end
 
     puts question.answer, ""
-    puts "Warning: cut off at max_tokens (#{Rails.configuration.x.answering[:max_tokens]}), so this answer is incomplete.", "" if question.truncated?
+    if question.incomplete?
+      reason = question.stop_reason
+      reason += " at #{Rails.configuration.x.answering[:max_tokens]} tokens" if reason == "max_tokens"
+      puts "Warning: stopped early (#{reason}), so this answer may be incomplete.", ""
+    end
     if question.retrieval.empty?
       puts "No embeddings found for #{Rails.configuration.x.embeddings[:model]}/#{Rails.configuration.x.retrieval[:strategy]}. Run citewise:embed."
       next

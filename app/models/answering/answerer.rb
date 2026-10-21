@@ -12,8 +12,8 @@ module Answering
   #   answer.usage     # => { input_tokens: 1200, output_tokens: 40, cache_read_tokens: 0, cache_write_tokens: 0 }
   #   answer.stop_reason # => "end_turn"
   #
-  # stop_reason is why the provider stopped writing. "max_tokens" means the
-  # text was cut off, so the answer is incomplete.
+  # stop_reason is why the provider stopped writing. Anything but "end_turn"
+  # (Question::COMPLETE_STOP_REASONS) means the text may be partial or empty.
   #
   # block_start and block_end index the chunk's passages (end exclusive):
   # Chunking::Paragraphs.split(chunk.content)[block_start...block_end] are the

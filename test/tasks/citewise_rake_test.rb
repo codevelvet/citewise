@@ -165,13 +165,19 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_includes output, "The documents don't cover that.\n\nCitations\n  (none)\n"
   end
 
-  test "ask warns when the answer was cut off at max_tokens" do
-    output = with_question_embedder do |embedder|
-      with_fake_embedder(embedder) { with_fake_answerer(FakeAnswerer.new(stop_reason: "max_tokens")) { ask("How much paid leave do I get?") } }
-    end
+  {
+    "max_tokens" => "max_tokens at 1024 tokens",
+    "refusal" => "refusal",
+    "something_new" => "something_new"
+  }.each do |stop_reason, reason|
+    test "ask warns, naming the reason, when the answer stopped with #{stop_reason}" do
+      output = with_question_embedder do |embedder|
+        with_fake_embedder(embedder) { with_fake_answerer(FakeAnswerer.new(stop_reason: stop_reason)) { ask("How much paid leave do I get?") } }
+      end
 
-    assert_includes output, "Full-time employees accrue 20 days of paid leave per year.\n\n" \
-      "Warning: cut off at max_tokens (1024), so this answer is incomplete.\n\nCitations\n"
+      assert_includes output, "Full-time employees accrue 20 days of paid leave per year.\n\n" \
+        "Warning: stopped early (#{reason}), so this answer may be incomplete.\n\nCitations\n"
+    end
   end
 
   test "ask without embeddings prints the fixed answer and a hint, without calling the answerer" do
