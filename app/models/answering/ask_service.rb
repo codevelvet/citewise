@@ -5,6 +5,10 @@ module Answering
   #   question.answer    # => "Full-time employees accrue 20 days of paid leave per year."
   #   question.citations # => [ { "chunk_id" => 12, "cited_text" => "...", "answer_start" => 0, ... } ]
   #
+  # AskJob answers a Question that the web page saved pending:
+  #
+  #   Answering::AskService.answer(question, keep_pending: [ Embeddings::Embedder::TransientError ])
+  #
   # Synchronous: one embedding call and one answering call. Retrieval and
   # citations store snapshots of their chunks, because re-ingesting a document
   # deletes its chunks. When anything fails, the Question is saved as failed
@@ -20,14 +24,23 @@ module Answering
       new(retriever: retriever, answerer: answerer).call(text)
     end
 
+    def self.answer(question, keep_pending: [], retriever: Retrieval::Retriever.new, answerer: Answerer.default)
+      new(retriever: retriever, answerer: answerer).answer(question, keep_pending: keep_pending)
+    end
+
     def initialize(retriever:, answerer:)
       @retriever = retriever
       @answerer = answerer
     end
 
     def call(text)
-      question = Question.create!(text: text, model: @answerer.model)
+      answer(Question.create!(text: text, model: @answerer.model))
+    end
 
+    # Answers a pending Question. Errors whose class is in keep_pending re-raise
+    # without failing it, for a caller that will retry.
+    def answer(question, keep_pending: [])
+      text = question.text
       results, retrieval_ms = timed { @retriever.call(text) }
       question.update!(retrieval: results.map { retrieved(it) }, retrieval_ms: retrieval_ms)
       return answer_without_sources(question) if results.empty?
@@ -42,10 +55,13 @@ module Answering
         **answer.usage.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens)
       )
       question
+    rescue *keep_pending => error
+      Rails.logger.warn "Question #{question.id} left pending for a retry: #{error.class}: #{error.message}"
+      raise
     rescue => error
       # Logged first, so the original survives if the update below also raises.
-      Rails.logger.error "Question #{question&.id} failed: #{error.class}: #{error.message}"
-      question&.update!(status: :failed, error: error.message)
+      Rails.logger.error "Question #{question.id} failed: #{error.class}: #{error.message}"
+      question.update!(status: :failed, error: error.message)
       raise
     end
 
