@@ -45,10 +45,14 @@ class QuestionsController < ApplicationController
   end
 
   private
+    # The same page whether or not the question exists, so it doesn't confirm that one does.
+    # The session cookie ends when the browser closes, so the asker can land here too.
     def set_question
-      raise ActiveRecord::RecordNotFound unless Array(session[:question_ids]).include?(params[:id].to_i)
+      @question = Question.find_by(id: params[:id]) if Array(session[:question_ids]).include?(params[:id].to_i)
+      return if @question
 
-      @question = Question.find(params[:id])
+      # formats: :html, because Turbo's Accept header lists streams first.
+      action_name == "show" ? render(:unavailable, status: :not_found, formats: :html) : head(:not_found)
     end
 
     def enforce_daily_cap

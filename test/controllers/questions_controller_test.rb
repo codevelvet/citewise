@@ -234,9 +234,12 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     question = Question.create!(text: "My manager is making me miserable")
 
     get question_path(question)
-    assert_response :not_found
+    assert_unavailable
+    assert_not_includes response.body, "My manager is making me miserable"
+
     get answer_question_path(question, format: :turbo_stream)
     assert_response :not_found
+    assert_empty response.body
   end
 
   test "another visitor can't see a question by its link" do
@@ -245,7 +248,20 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     open_session do |visitor|
       visitor.get question_path(question)
       visitor.assert_response :not_found
+      visitor.assert_select "h1", "This question isn't available"
     end
+  end
+
+  test "a question that doesn't exist gets the same page" do
+    get question_path(id: 0)
+
+    assert_unavailable
+  end
+
+  test "the unavailable page is HTML even when the request asks for streams first" do
+    get question_path(id: 0), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html, application/xhtml+xml" }
+
+    assert_unavailable
   end
 
   test "a visitor can still see their earlier questions after asking another" do
@@ -277,6 +293,13 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+    def assert_unavailable
+      assert_response :not_found
+      assert_equal "text/html", response.media_type
+      assert_select "h1", "This question isn't available"
+      assert_select "main a[href=?]", new_question_path, "Ask a question"
+    end
+
     def ask(ip:)
       post questions_path, params: { question: { text: "How much leave?" } }, env: { "REMOTE_ADDR" => ip }
     end
