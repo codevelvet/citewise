@@ -22,6 +22,9 @@ Rails.application.configure do
   config.consider_all_requests_local = true
   config.cache_store = :null_store
 
+  # rate_limit needs a store that counts; the :null_store above never does. Tests clear it in setup.
+  config.x.ask_page[:rate_limit_store] = ActiveSupport::Cache::MemoryStore.new
+
   # Render exception templates for rescuable exceptions and raise for other exceptions.
   config.action_dispatch.show_exceptions = :rescuable
 
