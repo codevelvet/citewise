@@ -34,8 +34,10 @@ module Answering
 
       answer, answer_ms = timed { @answerer.answer(text, results.map(&:chunk)) }
       chunks = results.map(&:chunk).index_by(&:id)
-      question.update!(
-        status: :answered, answer: answer.text, model: answer.model, answer_ms: answer_ms, stop_reason: answer.stop_reason,
+      # Reloaded because the abandoned sweep may have failed it meanwhile. update!
+      # writes only changed attributes, so error: nil would otherwise be skipped.
+      question.reload.update!(
+        status: :answered, answer: answer.text, model: answer.model, answer_ms: answer_ms, stop_reason: answer.stop_reason, error: nil,
         citations: answer.citations.map { it.merge(source_of(chunks.fetch(it[:chunk_id]))) },
         **answer.usage.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens)
       )
