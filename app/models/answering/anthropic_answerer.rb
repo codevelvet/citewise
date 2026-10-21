@@ -16,8 +16,10 @@ module Answering
       message = @client.messages.create(
         model: model,
         max_tokens: @max_tokens,
-        # Cached once the prefix reaches the model's minimum (4096 tokens on Haiku 4.5).
-        system_: [ { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } } ],
+        # No cache breakpoint: the system prompt is far below the model's caching
+        # minimum (4096 tokens on Haiku 4.5), and the chunks after it change with
+        # every question. Add one when there's a large prefix that stays the same.
+        system_: [ { type: "text", text: SYSTEM_PROMPT } ],
         messages: [ { role: "user", content: chunks.map { search_result(it) } + [ { type: "text", text: text } ] } ]
       )
 

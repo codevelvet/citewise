@@ -43,7 +43,7 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     assert_requested :post, ENDPOINT, body: hash_including(
       model: "claude-haiku-4-5",
       max_tokens: 1024,
-      system: [ { type: "text", text: Answering::Answerer::SYSTEM_PROMPT, cache_control: { type: "ephemeral" } } ],
+      system: [ { type: "text", text: Answering::Answerer::SYSTEM_PROMPT } ],
       messages: [ { role: "user", content: [
         search_result(chunks(:leave_details), "Leave Policy > Benefits", LEAVE_DETAILS_PARAGRAPHS),
         search_result(chunks(:intro), "Employee Handbook > Introduction"),
