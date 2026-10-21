@@ -53,6 +53,7 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     assert_match(/\b5\b/, answer.text)
     assert_no_match(/search result|excerpt/i, answer.text)
     assert_equal "claude-haiku-4-5", answer.model
+    assert_equal "end_turn", answer.stop_reason
     assert answer.citations.any?
     answer.citations.each do |citation|
       assert_equal chunks(:leave_details).id, citation[:chunk_id]
@@ -86,6 +87,16 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     ], spans
     assert_equal chunks(:leave).content, answer.citations.first[:cited_text]
     assert_equal [ 0, 1 ], answer.citations.first.values_at(:block_start, :block_end)
+  end
+
+  test "an answer cut off at max_tokens keeps its text and citations and says why it stopped" do
+    stub_claude(content: [ text_block("Full-time employees get 20 days", citations: [ citation(chunks(:leave)) ]) ], stop_reason: "max_tokens")
+
+    answer = @answerer.answer(QUESTION, @chunks)
+
+    assert_equal "max_tokens", answer.stop_reason
+    assert_equal "Full-time employees get 20 days", answer.text
+    assert_equal [ chunks(:leave).id ], answer.citations.map { it[:chunk_id] }
   end
 
   test "sends each paragraph of a chunk as its own text block, with inline headings attached" do
@@ -208,9 +219,9 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
         search_result_index: 0, start_block_index: blocks.begin, end_block_index: blocks.end }
     end
 
-    def stub_claude(content:, usage: { input_tokens: 300, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
+    def stub_claude(content:, stop_reason: "end_turn", usage: { input_tokens: 300, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 })
       body = { id: "msg_test", type: "message", role: "assistant", model: "claude-haiku-4-5", content: content,
-               stop_reason: "end_turn", stop_sequence: nil, usage: usage }
+               stop_reason: stop_reason, stop_sequence: nil, usage: usage }
       stub_request(:post, ENDPOINT).to_return(status: 200, body: body.to_json, headers: { "Content-Type" => "application/json" })
     end
 

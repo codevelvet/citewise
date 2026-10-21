@@ -45,7 +45,7 @@ namespace :citewise do
     puts "Enqueued #{count}"
   end
 
-  desc "Answer a question from the embedded chunks, with citations (1 Voyage call + 1 Claude call)"
+  desc "Answer a question from the embedded chunks, with citations (1 embedding call + 1 answering call)"
   task :ask, [ :question ] => :environment do |_task, args|
     # Rake splits arguments on commas, so put the question back together.
     text = [ args[:question], *args.extras ].compact.join(", ").strip
@@ -58,6 +58,7 @@ namespace :citewise do
     end
 
     puts question.answer, ""
+    puts "Warning: cut off at max_tokens (#{Rails.configuration.x.answering[:max_tokens]}), so this answer is incomplete.", "" if question.truncated?
     if question.retrieval.empty?
       puts "No embeddings found for #{Rails.configuration.x.embeddings[:model]}/#{Rails.configuration.x.retrieval[:strategy]}. Run citewise:embed."
       next

@@ -1,12 +1,15 @@
 class Question < ApplicationRecord
   # Answering::AskService finishes within about 32 minutes at worst (Voyage's 60s timeout
-  # plus three 600s Claude attempts), so a question pending longer was abandoned: the
+  # plus three 600s answering attempts), so a question pending longer was abandoned: the
   # process died mid-request, or it predates AskService marking every error failed.
   ABANDONED_AFTER = 1.hour
 
   enum :status, { pending: "pending", answered: "answered", failed: "failed" }, validate: true
 
   validates :text, presence: true
+
+  # The answerer stopped at max_tokens, so the saved answer is incomplete.
+  def truncated? = stop_reason == "max_tokens"
 
   # Marks abandoned questions failed and returns how many. Runs from config/recurring.yml
   # and bin/rails citewise:fail_abandoned_questions.

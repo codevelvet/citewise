@@ -6,12 +6,13 @@ class FakeAnswerer < Answering::Answerer
   USAGE = { input_tokens: 900, output_tokens: 40, cache_read_tokens: 0, cache_write_tokens: 0 }.freeze
 
   attr_reader :calls
-  attr_accessor :error, :text, :cite
+  attr_accessor :error, :text, :cite, :stop_reason
 
-  def initialize(model: "claude-haiku-4-5", text: "Full-time employees accrue 20 days of paid leave per year.", cite: true)
+  def initialize(model: "claude-haiku-4-5", text: "Full-time employees accrue 20 days of paid leave per year.", cite: true, stop_reason: "end_turn")
     super(model: model)
     @text = text
     @cite = cite
+    @stop_reason = stop_reason
     @calls = []
   end
 
@@ -25,7 +26,7 @@ class FakeAnswerer < Answering::Answerer
       citations << { chunk_id: chunks.first.id, cited_text: paragraphs.join("\n\n"), block_start: 0, block_end: paragraphs.size,
                      answer_start: 0, answer_end: text.length }
     end
-    Answer.new(text: text, citations: citations, model: model, usage: USAGE)
+    Answer.new(text: text, citations: citations, model: model, usage: USAGE, stop_reason: stop_reason)
   end
 
   # Makes Answerer.default return a FakeAnswerer inside the block. Includes

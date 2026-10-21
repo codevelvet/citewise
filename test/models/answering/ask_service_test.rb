@@ -21,6 +21,8 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal QUESTION, question.text
     assert_equal "Full-time employees accrue 20 days of paid leave per year.", question.answer
     assert_equal "claude-haiku-4-5", question.model
+    assert_equal "end_turn", question.stop_reason
+    assert_not question.truncated?
 
     assert_equal [ chunks(:leave).id, chunks(:intro).id ], question.retrieval.map { it["chunk_id"] }
     assert_equal [ 1, 2 ], question.retrieval.map { it["rank"] }
@@ -61,7 +63,16 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal [], question.citations
   end
 
-  test "with nothing retrieved, Claude isn't asked and the question gets a fixed answer" do
+  test "an answer cut off at max_tokens is answered but flagged truncated" do
+    question = ask(FakeAnswerer.new(stop_reason: "max_tokens"))
+
+    assert question.answered?
+    assert question.truncated?
+    assert_equal "max_tokens", question.stop_reason
+    assert_equal "Full-time employees accrue 20 days of paid leave per year.", question.answer
+  end
+
+  test "with nothing retrieved, the answerer isn't called and the question gets a fixed answer" do
     ChunkEmbedding.delete_all
     answerer = FakeAnswerer.new
     log = StringIO.new
@@ -72,6 +83,7 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert question.answered?
     assert_equal Answering::AskService::NO_SOURCES_ANSWER, question.answer
     assert_nil question.model
+    assert_nil question.stop_reason
     assert_equal [ [], [] ], [ question.retrieval, question.citations ]
     assert_equal [ 0, 0, 0, 0 ], question.slice(:input_tokens, :output_tokens, :cache_read_tokens, :cache_write_tokens).values
     assert_nil question.answer_ms
@@ -79,7 +91,7 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
   end
 
   test "an embedding failure marks the question failed and re-raises" do
-    [ Embeddings::Embedder::TransientError.new("Voyage 429: Slow down"), Embeddings::Embedder::PermanentError.new("Voyage 401: Bad key") ].each do |failure|
+    [ Embeddings::Embedder::TransientError.new("Embedding provider 429: Slow down"), Embeddings::Embedder::PermanentError.new("Embedding provider 401: Bad key") ].each do |failure|
       @embedder.define_singleton_method(:embed_query) { |_text| raise failure }
 
       raised = assert_raises(failure.class) { ask }
@@ -92,7 +104,7 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
   end
 
   test "an answering failure marks the question failed, keeping retrieval, and re-raises" do
-    [ Answering::Answerer::TransientError.new("Claude 529: Overloaded"), Answering::Answerer::PermanentError.new("Claude 400: Bad request") ].each do |failure|
+    [ Answering::Answerer::TransientError.new("Answering provider 529: Overloaded"), Answering::Answerer::PermanentError.new("Answering provider 400: Bad request") ].each do |failure|
       answerer = FakeAnswerer.new
       answerer.error = failure
 
