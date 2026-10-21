@@ -5,6 +5,7 @@ class Question < ApplicationRecord
   # longer was abandoned: the process died mid-request, or it predates AskService marking
   # every error failed.
   ABANDONED_AFTER = 1.hour
+  ABANDONED_ERROR = "Still pending after #{ABANDONED_AFTER.inspect}: the process answering it likely died".freeze
 
   enum :status, { pending: "pending", answered: "answered", failed: "failed" }, validate: true
 
@@ -26,7 +27,12 @@ class Question < ApplicationRecord
   # Marks abandoned questions failed and returns how many. Runs from config/recurring.yml
   # and bin/rails citewise:fail_abandoned_questions.
   def self.fail_abandoned
-    pending.where(created_at: ...ABANDONED_AFTER.ago).update_all(
-      status: :failed, error: "Still pending after #{ABANDONED_AFTER.inspect}: the process answering it likely died", updated_at: Time.current)
+    pending.where(created_at: ...ABANDONED_AFTER.ago).update_all(status: :failed, error: ABANDONED_ERROR, updated_at: Time.current)
   end
+
+  # Failed by fail_abandoned rather than by an error while answering.
+  def abandoned? = failed? && error == ABANDONED_ERROR
+
+  # The answer split into text and citation markers, and its sources, for the page.
+  def cited_answer = @cited_answer ||= CitedAnswer.new(answer, citations)
 end

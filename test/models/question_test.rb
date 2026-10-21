@@ -44,6 +44,15 @@ class QuestionTest < ActiveSupport::TestCase
     assert answered.reload.answered?
   end
 
+  test "abandoned only when the sweep failed it" do
+    swept = Question.create!(text: "Abandoned?", created_at: 2.hours.ago)
+    Question.fail_abandoned
+
+    assert swept.reload.abandoned?
+    assert_not Question.new(status: :failed, error: "Answering provider 529: Overloaded").abandoned?
+    assert_not Question.new(status: :pending).abandoned?
+  end
+
   test "rejects an unknown status" do
     question = Question.new(text: "Why?", status: "skipped")
     assert_not question.valid?
