@@ -29,7 +29,7 @@ module Answering
         "cache_read_tokens=#{usage[:cache_read_tokens]} cache_write_tokens=#{usage[:cache_write_tokens]} " \
         "citations=#{citations.size} dropped=#{dropped} stop_reason=#{message.stop_reason}"
 
-      Answer.new(text: answer_text, citations: citations, model: model, usage: usage, stop_reason: message.stop_reason.to_s)
+      Answer.new(text: answer_text, citations: citations, model: model, usage: usage, stop_reason: message.stop_reason&.to_s || "missing")
     rescue Anthropic::Errors::RateLimitError, Anthropic::Errors::InternalServerError, Anthropic::Errors::ConflictError => error
       raise TransientError.new("Claude #{error.status}: #{error.message}", retry_after: retry_after(error.headers))
     rescue Anthropic::Errors::APIConnectionError => error

@@ -99,6 +99,12 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     assert_equal [ chunks(:leave).id ], answer.citations.map { it[:chunk_id] }
   end
 
+  test "a response without a stop reason records it as missing, so the answer is flagged" do
+    stub_claude(content: [ text_block("Up to 5 days.") ], stop_reason: nil)
+
+    assert_equal "missing", @answerer.answer(QUESTION, @chunks).stop_reason
+  end
+
   test "sends each paragraph of a chunk as its own text block, with inline headings attached" do
     stub_claude(content: [ text_block("Up to 5 days.") ])
 

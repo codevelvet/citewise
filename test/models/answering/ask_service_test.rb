@@ -22,7 +22,7 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal "Full-time employees accrue 20 days of paid leave per year.", question.answer
     assert_equal "claude-haiku-4-5", question.model
     assert_equal "end_turn", question.stop_reason
-    assert_not question.truncated?
+    assert_not question.incomplete?
 
     assert_equal [ chunks(:leave).id, chunks(:intro).id ], question.retrieval.map { it["chunk_id"] }
     assert_equal [ 1, 2 ], question.retrieval.map { it["rank"] }
@@ -63,11 +63,11 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     assert_equal [], question.citations
   end
 
-  test "an answer cut off at max_tokens is answered but flagged truncated" do
+  test "an answer cut off at max_tokens is answered but flagged incomplete" do
     question = ask(FakeAnswerer.new(stop_reason: "max_tokens"))
 
     assert question.answered?
-    assert question.truncated?
+    assert question.incomplete?
     assert_equal "max_tokens", question.stop_reason
     assert_equal "Full-time employees accrue 20 days of paid leave per year.", question.answer
   end
