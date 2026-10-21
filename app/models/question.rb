@@ -6,7 +6,10 @@ class Question < ApplicationRecord
 
   enum :status, { pending: "pending", answered: "answered", failed: "failed" }, validate: true
 
-  validates :text, presence: true
+  # Caps embedding and answering cost per question. Real questions are far shorter.
+  MAX_TEXT_LENGTH = 4_000
+
+  validates :text, presence: true, length: { maximum: MAX_TEXT_LENGTH }
 
   # The answerer stopped at max_tokens, so the saved answer is incomplete.
   def truncated? = stop_reason == "max_tokens"

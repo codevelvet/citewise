@@ -117,6 +117,18 @@ class Answering::AskServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "a question over the length limit is rejected before anything is embedded or answered" do
+    @embedder.define_singleton_method(:embed_query) { |_text| raise "embedded a question over the limit" }
+    answerer = FakeAnswerer.new
+
+    assert_no_difference -> { Question.count } do
+      assert_raises(ActiveRecord::RecordInvalid) do
+        Answering::AskService.call("a" * (Question::MAX_TEXT_LENGTH + 1), retriever: Retrieval::Retriever.new(embedder: @embedder), answerer: answerer)
+      end
+    end
+    assert_empty answerer.calls
+  end
+
   test "an unexpected error marks the question failed and re-raises" do
     @embedder.define_singleton_method(:embed_query) { |_text| raise "boom" }
 
