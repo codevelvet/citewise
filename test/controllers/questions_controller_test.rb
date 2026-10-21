@@ -99,7 +99,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show renders a pending question with a live region, placeholders, and its stream" do
-    question = Question.create!(text: "How much leave?")
+    question = asked
 
     get question_path(question)
 
@@ -143,7 +143,9 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     { "max_tokens" => "This answer was cut off", "refusal" => "This answer stopped early",
       "model_context_window_exceeded" => "This answer was cut off", "missing" => "This answer may be incomplete",
       "pause_turn" => "This answer stopped early" }.each do |reason, title|
-      get question_path(answered_question(stop_reason: reason))
+      question ||= answered_question
+      question.update!(stop_reason: reason)
+      get question_path(question)
 
       assert_select "[role=note] strong", title
       assert_select "[role=note] code", reason
@@ -153,7 +155,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show offers Try again on a failed question, without the error outside development" do
-    question = Question.create!(text: "How much leave?", status: :failed, error: "Answering provider 529: Overloaded")
+    question = asked(status: :failed, error: "Answering provider 529: Overloaded")
 
     get question_path(question)
 
@@ -165,7 +167,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show includes a failed question's error in development" do
-    question = Question.create!(text: "How much leave?", status: :failed, error: "Answering provider 529: Overloaded")
+    question = asked(status: :failed, error: "Answering provider 529: Overloaded")
 
     stub(Rails, :env, -> { ActiveSupport::EnvironmentInquirer.new("development") }) { get question_path(question) }
 
@@ -183,7 +185,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show words a question the sweep failed as timed out" do
-    question = Question.create!(text: "How much leave?", created_at: 2.hours.ago)
+    question = asked(created_at: 2.hours.ago)
     Question.fail_abandoned
 
     get question_path(question)
@@ -193,7 +195,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show treats an answered question with no sources as a dead end" do
-    question = Question.create!(text: "Parental leave?", status: :answered, answer: Answering::AskService::NO_SOURCES_ANSWER)
+    question = asked(text: "Parental leave?", status: :answered, answer: Answering::AskService::NO_SOURCES_ANSWER)
 
     get question_path(question)
 
@@ -203,7 +205,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show renders the page when a Turbo form submission follows the redirect to it" do
-    question = Question.create!(text: "How much leave?")
+    question = asked
 
     # Turbo's form fetch asks for streams first, and keeps that Accept header across the redirect.
     get question_path(question), headers: { "Accept" => "text/vnd.turbo-stream.html, text/html, application/xhtml+xml" }
@@ -214,7 +216,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the turbo_stream refresh is empty while pending, and replaces the answer once it isn't" do
-    question = Question.create!(text: "How much leave?")
+    question = asked
 
     get answer_question_path(question, format: :turbo_stream)
     assert_response :no_content
@@ -226,6 +228,34 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "text/vnd.turbo-stream.html", response.media_type
     assert_select "turbo-stream[action=replace][target=?] template h2", dom_id(question, :answer), "Citewise couldn't answer this question"
     assert_select "turbo-stream[action=update][target=?] template", dom_id(question, :status), "Citewise couldn't answer this question."
+  end
+
+  test "show and answer return 404 for a question this visitor didn't ask" do
+    question = Question.create!(text: "My manager is making me miserable")
+
+    get question_path(question)
+    assert_response :not_found
+    get answer_question_path(question, format: :turbo_stream)
+    assert_response :not_found
+  end
+
+  test "another visitor can't see a question by its link" do
+    question = asked
+
+    open_session do |visitor|
+      visitor.get question_path(question)
+      visitor.assert_response :not_found
+    end
+  end
+
+  test "a visitor can still see their earlier questions after asking another" do
+    first = asked
+    asked(text: "Can I work remotely?")
+
+    get question_path(first)
+
+    assert_response :success
+    assert_select "h1", "How much leave?"
   end
 
   test "the routes return 404 when the ask page is disabled" do
@@ -251,9 +281,15 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
       post questions_path, params: { question: { text: "How much leave?" } }, env: { "REMOTE_ADDR" => ip }
     end
 
+    # Asks through the app, so the question is this session's to see, then sets its state.
+    def asked(text: "How much leave?", **attributes)
+      post questions_path, params: { question: { text: text } }
+      Question.last.tap { it.update!(attributes) }
+    end
+
     def answered_question(answer: ANSWER, cited_text: chunks(:leave).content, stop_reason: "end_turn")
       cited = answer.split(" Ask HR").first
-      Question.create!(
+      asked(
         text: "How much paid leave do I get?", status: :answered, answer: answer, stop_reason: stop_reason, retrieval_ms: 300, answer_ms: 1200,
         retrieval: [ { chunk_id: chunks(:leave).id, rank: 1 } ],
         citations: [ { chunk_id: chunks(:leave).id, cited_text: cited_text, answer_start: 0, answer_end: cited.length,

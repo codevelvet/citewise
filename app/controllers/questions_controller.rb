@@ -9,6 +9,10 @@ class QuestionsController < ApplicationController
              store: LIMITS[:rate_limit_store] || cache_store, with: -> { too_many_questions(:visitor) }
   before_action :enforce_daily_cap, only: :create
 
+  # Questions can be personal, and a shared answer page could pass off a coaxed answer as
+  # Citewise's, so only the visitor who asked can see one. Everyone else gets a 404.
+  before_action :set_question, only: %i[show answer]
+
   def new
     # Example questions and "Ask again" links pre-fill the box; a GET never asks anything.
     @question = Question.new(text: params[:text].to_s.first(Question::MAX_TEXT_LENGTH))
@@ -18,6 +22,8 @@ class QuestionsController < ApplicationController
     @question = Question.new(text: params.expect(question: [ :text ])[:text])
 
     if @question.save
+      # The cookie session is encrypted, so visitors can't add other IDs. Capped to keep it small.
+      session[:question_ids] = [ *session[:question_ids], @question.id ].last(LIMITS[:per_day])
       AskJob.perform_later(@question)
       redirect_to @question
     else
@@ -28,20 +34,23 @@ class QuestionsController < ApplicationController
   # HTML only. Turbo follows the create redirect asking for streams first, so a stream
   # format here would answer that navigation instead of rendering the page.
   def show
-    @question = Question.find(params[:id])
   end
 
   # Fetched once the page's stream subscription is confirmed, in case the answer was
   # broadcast before then. Nothing to replace while it's still pending.
   def answer
-    @question = Question.find(params[:id])
-
     respond_to do |format|
       format.turbo_stream { head :no_content if @question.pending? }
     end
   end
 
   private
+    def set_question
+      raise ActiveRecord::RecordNotFound unless Array(session[:question_ids]).include?(params[:id].to_i)
+
+      @question = Question.find(params[:id])
+    end
+
     def enforce_daily_cap
       too_many_questions(:everyone) if Question.where(created_at: 24.hours.ago..).count >= LIMITS[:per_day]
     end
