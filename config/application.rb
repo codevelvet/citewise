@@ -46,7 +46,7 @@ module Citewise
     }
 
     # Settings for Retrieval::Retriever. The embedding model and dimensions come from
-    # config.x.embeddings. k is the number of chunks sent to Claude; CLAUDE.md caps it at 8.
+    # config.x.embeddings. k is the number of chunks sent to the answerer; CLAUDE.md caps it at 8.
     config.x.retrieval = { k: 8, strategy: "raw" }
 
     # Settings for Answering::Answerer.default. Keep the model a Haiku unless CLAUDE.md changes.

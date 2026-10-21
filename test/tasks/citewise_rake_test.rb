@@ -165,7 +165,16 @@ class CitewiseRakeTest < ActiveSupport::TestCase
     assert_includes output, "The documents don't cover that.\n\nCitations\n  (none)\n"
   end
 
-  test "ask without embeddings prints the fixed answer and a hint, without asking Claude" do
+  test "ask warns when the answer was cut off at max_tokens" do
+    output = with_question_embedder do |embedder|
+      with_fake_embedder(embedder) { with_fake_answerer(FakeAnswerer.new(stop_reason: "max_tokens")) { ask("How much paid leave do I get?") } }
+    end
+
+    assert_includes output, "Full-time employees accrue 20 days of paid leave per year.\n\n" \
+      "Warning: cut off at max_tokens (1024), so this answer is incomplete.\n\nCitations\n"
+  end
+
+  test "ask without embeddings prints the fixed answer and a hint, without calling the answerer" do
     answerer = FakeAnswerer.new
     output = with_fake_embedder { with_fake_answerer(answerer) { ask("How much paid leave do I get?") } }
 
@@ -182,7 +191,7 @@ class CitewiseRakeTest < ActiveSupport::TestCase
 
   test "ask aborts with the error when answering fails, leaving a failed question" do
     answerer = FakeAnswerer.new
-    answerer.error = Answering::Answerer::TransientError.new("Claude 529: Overloaded")
+    answerer.error = Answering::Answerer::TransientError.new("Answering provider 529: Overloaded")
 
     error = assert_raises(SystemExit) do
       with_question_embedder { |embedder| with_fake_embedder(embedder) { with_fake_answerer(answerer) { ask("How much paid leave do I get?") } } }
