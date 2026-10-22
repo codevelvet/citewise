@@ -5,7 +5,8 @@ module Retrieval
   #   # => [ Result(chunk:, similarity: 0.83, rank: 1), ... ], nearest first
   #
   # Only embeddings from the embedder's model and the configured strategy are
-  # searched, matching the partial HNSW index on chunk_embeddings.
+  # searched. The search is exact, with no approximate index, so it never misses
+  # a nearer chunk; its cost grows linearly with the number of embeddings.
   class Retriever
     Result = Data.define(:chunk, :similarity, :rank)
 
@@ -28,15 +29,11 @@ module Retrieval
       end
     end
 
-    # The nearest-neighbor query. ORDER BY repeats the index expression
-    # (embedding::vector(D) <=> query) and WHERE repeats its predicate, so
-    # Postgres can use the partial HNSW index. The query vector is a bound
-    # parameter, which the SQL log shows as [FILTERED]. Model and strategy are
-    # literals, not binds: a generic plan for a prepared statement can't prove
-    # a partial index's predicate from parameters.
+    # The nearest-neighbor query. The query vector is a bound parameter, which
+    # the SQL log shows as [FILTERED].
     def relation(vector, k)
       ChunkEmbedding
-        .where(ChunkEmbedding.sanitize_sql_array([ "chunk_embeddings.model = ? AND chunk_embeddings.strategy = ?", embedder.model, strategy.to_s ]))
+        .where(model: embedder.model, strategy: strategy.to_s)
         .select(:chunk_id, distance_to(vector).as("distance"))
         .order(distance_to(vector))
         .limit(k)
@@ -45,9 +42,7 @@ module Retrieval
     private
       def distance_to(vector)
         query = Arel::Nodes::BindParam.new(ActiveRecord::Relation::QueryAttribute.new("query_embedding", vector, ChunkEmbedding.type_for_attribute(:embedding)))
-        Arel::Nodes::InfixOperation.new("<=>",
-          Arel.sql("chunk_embeddings.embedding::vector(#{embedder.dimensions.to_i})"),
-          Arel::Nodes::InfixOperation.new("::", query, Arel.sql("vector(#{embedder.dimensions.to_i})")))
+        Arel::Nodes::InfixOperation.new("<=>", ChunkEmbedding.arel_table[:embedding], query)
       end
   end
 end

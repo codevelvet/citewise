@@ -55,35 +55,23 @@ class Retrieval::RetrieverTest < ActiveSupport::TestCase
     assert_equal [ 1, 2 ], results.map(&:rank)
   end
 
-  test "binds the query vector and keeps the index predicate literal" do
-    sql, binds = query_of(@retriever.relation(@query, 8))
+  test "finds every live chunk even after many deleted embeddings" do
+    # Deleted rows near the query, like a re-ingest or rolled-back tests leave
+    # behind. An approximate index scan could miss live rows past them.
+    ChunkEmbedding.transaction(requires_new: true) do
+      200.times { |i| embed(chunk_at(100 + i), i.even? ? blend(0, 1, 0.1) : blend(0, 1, 0.5)) }
+      raise ActiveRecord::Rollback
+    end
 
-    assert_includes sql, "ORDER BY chunk_embeddings.embedding::vector(1024) <=> $2 :: vector(1024)"
-    assert_includes sql, "chunk_embeddings.model = 'voyage-4-lite' AND chunk_embeddings.strategy = 'raw'"
-    assert_no_match(/\[[-\d.,e]+\]/, sql)
-    assert_equal [ "query_embedding", "query_embedding", "LIMIT" ], binds
+    assert_equal [ @nearest, @middle, @farthest ], @retriever.call("question").map(&:chunk)
   end
 
-  test "uses the partial HNSW index, including under a generic prepared-statement plan" do
-    relation = @retriever.relation(@query, 8)
-    connection = ChunkEmbedding.connection
-    connection.execute("SET LOCAL enable_seqscan = off")
+  test "binds the query vector" do
+    sql, binds = query_of(@retriever.relation(@query, 8))
 
-    assert_includes relation.explain.inspect, "Index Scan using index_chunk_embeddings_on_voyage_4_lite_raw_embedding"
-
-    # Rails prepares statements, and Postgres may switch to a generic plan after
-    # five runs. A generic plan can only use the partial index if its predicate is literal.
-    sql, _binds = query_of(relation)
-    vector = connection.quote("[#{@query.join(",")}]")
-    connection.execute("SET LOCAL plan_cache_mode = force_generic_plan")
-    # Prepared statements outlive the test's rolled-back transaction, so deallocate it.
-    connection.execute("PREPARE retriever_test_query AS #{sql}")
-    begin
-      plan = connection.select_values("EXPLAIN EXECUTE retriever_test_query(#{vector}, #{vector}, 8)").join("\n")
-    ensure
-      connection.execute("DEALLOCATE retriever_test_query")
-    end
-    assert_includes plan, "Index Scan using index_chunk_embeddings_on_voyage_4_lite_raw_embedding"
+    assert_includes sql, "ORDER BY \"chunk_embeddings\".\"embedding\" <=> $"
+    assert_no_match(/\[[-\d.,e]+\]/, sql)
+    assert_equal [ "query_embedding", "model", "strategy", "query_embedding", "LIMIT" ], binds
   end
 
   private
