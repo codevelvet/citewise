@@ -36,3 +36,14 @@ vulnerabilities:
       but unreleased; no thruster release at least 14 days old includes
       the fix (checked 2026-10-16). Remove after updating thruster.
     expired_at: 2026-11-15
+  - id: CVE-2026-111943
+    paths:
+      - "usr/local/bundle/ruby/4.0.0/gems/thruster-0.1.27-x86_64-linux/exe/x86_64-linux/thrust"
+    statement: >-
+      crypto/x509 distrusted-intermediate denylist missing from Go stdlib
+      1.27.1, compiled into thruster 0.1.27's thrust binary. Only affects
+      outbound TLS verification; thrust serves plain HTTP behind the proxy
+      and makes no outbound TLS calls (no TLS_DOMAIN). Needs Go 1.27.3; no
+      thruster release includes it yet (checked 2026-10-21). Remove after
+      updating thruster. Revisit if TLS_DOMAIN is ever set.
+    expired_at: 2026-11-15
