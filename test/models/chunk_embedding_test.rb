@@ -71,7 +71,7 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
     end
   end
 
-  test "nearest neighbors for voyage-4-lite raw embeddings, using the partial HNSW index" do
+  test "nearest neighbors for voyage-4-lite raw embeddings" do
     document = documents(:pending_upload)
     chunk_at = ->(position) { document.chunks.create!(position: position, content: "Chunk #{position}", token_count: 2, content_hash: "hash-#{position}") }
 
@@ -80,7 +80,7 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
     middle = build_embedding(chunk: chunk_at.(1), embedding: blend(0, 1, 0.5)).tap(&:save!)
     farthest = build_embedding(chunk: chunk_at.(2), embedding: axis(1)).tap(&:save!)
 
-    # Exact matches for the query that the index predicate must exclude
+    # Exact matches for the query that the model and strategy filter must exclude
     build_embedding(chunk: nearest.chunk, strategy: :contextual, embedding: query).save!
     build_embedding(chunk: nearest.chunk, model: "voyage-4", embedding: query).save!
 
@@ -90,10 +90,6 @@ class ChunkEmbeddingTest < ActiveSupport::TestCase
       .limit(5)
 
     assert_equal [ nearest, middle, farthest ], neighbors.to_a
-
-    ChunkEmbedding.connection.execute("SET LOCAL enable_seqscan = off")
-    plan = ChunkEmbedding.connection.select_values("EXPLAIN #{neighbors.to_sql}").join("\n")
-    assert_includes plan, "index_chunk_embeddings_on_voyage_4_lite_raw_embedding"
   end
 
   private

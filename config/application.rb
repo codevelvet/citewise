@@ -28,8 +28,7 @@ module Citewise
     # existing documents Document.outdated; run bin/rails citewise:reingest to re-chunk.
     config.x.chunker = { target_tokens: 400, max_tokens: 512, min_tokens: 100, overlap_tokens: 50, merge_policy: :within_section }
 
-    # Settings for Embeddings::Embedder.default and EmbedDocumentJob. The HNSW index on
-    # chunk_embeddings serves voyage-4-lite at 1024 dimensions only.
+    # Settings for Embeddings::Embedder.default and EmbedDocumentJob.
     config.x.embeddings = {
       model: "voyage-4-lite",
       dimensions: 1024,

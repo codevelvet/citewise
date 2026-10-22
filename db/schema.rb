@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_21_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "vector"
@@ -52,7 +52,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_21_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "input_hash", null: false
-    t.index "((embedding)::vector(1024)) vector_cosine_ops", name: "index_chunk_embeddings_on_voyage_4_lite_raw_embedding", where: "(((model)::text = 'voyage-4-lite'::text) AND ((strategy)::text = 'raw'::text))", using: :hnsw
     t.index ["chunk_id", "model", "strategy"], name: "index_chunk_embeddings_on_chunk_id_and_model_and_strategy", unique: true
     t.check_constraint "vector_dims(embedding) = dimensions", name: "chunk_embeddings_embedding_matches_dimensions"
   end
