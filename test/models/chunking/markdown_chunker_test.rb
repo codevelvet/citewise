@@ -306,11 +306,114 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
     assert_equal "Body.", chunks.first.content
   end
 
-  test "keeps HTML blocks with text inside tags, including entities and script or style source" do
-    blocks = [ "<div>\n<p>Real text</p>\n</div>", "<div>&nbsp;</div>", "<script>track()</script>", "<style>p { color: red }</style>" ]
+  test "keeps HTML blocks with text inside tags exactly as written" do
+    blocks = [ "<div>\n<p>Real text</p>\n</div>", "<div class=x>Text &copy;<br/></div>" ]
     chunks = chunk("Body.\n\n#{blocks.join("\n\n")}\n")
 
     assert_equal [ "Body.", *blocks ].join("\n\n"), chunks.first.content
+  end
+
+  test "drops HTML blocks of only script, style, or whitespace entities" do
+    blocks = [ "<script>track()</script>", "<style>p { color: red }</style>", "<div>&nbsp;</div>", "<p>&ensp;&#160;</p>" ]
+    chunks = chunk("Body.\n\n#{blocks.join("\n\n")}\n")
+
+    assert_equal "Body.", chunks.first.content
+  end
+
+  test "removes an inline comment from a paragraph, keeping its other Markdown" do
+    assert_equal "Leave accrues **monthly**, see [HR](/hr).", chunk("Leave accrues **monthly**, see [HR](/hr). <!-- outdated, check with HR -->\n").first.content
+    assert_equal "Leave accrues  monthly.", chunk("Leave accrues <!-- outdated --> monthly.\n").first.content
+  end
+
+  test "removes a comment that spans several lines of a paragraph" do
+    assert_equal "Start  end.", chunk("Start <!-- line one\nline two\nline three --> end.\n").first.content
+  end
+
+  test "removes a comment that contains >" do
+    assert_equal "A  B.", chunk("A <!-- a -> b > c --> B.\n").first.content
+  end
+
+  test "removes a comment after multibyte characters" do
+    assert_equal "Café  ok.", chunk("Café <!-- c --> ok.\n").first.content
+  end
+
+  test "removes inline comments from list items, headings, and table cells" do
+    chunks = chunk(<<~MD, max_tokens: 6, target_tokens: 3, overlap_tokens: 0, token_counter: WordCounter.new)
+      ## Title <!-- heading note -->
+
+      - one <!-- c1 -->
+      - two
+
+      | a <!-- c2 --> | b |
+      |---|---|
+      | 1 | 2 |
+    MD
+
+    assert_equal [ "Doc", "Title" ], chunks.first.heading_path
+    assert_equal [ "- one", "- two", "| a  | b |\n|---|---|\n| 1 | 2 |" ], chunks.map(&:content)
+  end
+
+  test "removes inline comments from headings that merge into content" do
+    chunks = merge_chunk("## A\n\n### B <!-- c -->\n\nShort b.\n\n### C\n\nShort c.\n", merge_policy: :common_prefix)
+
+    assert_equal "### B\n\nShort b.\n\n### C\n\nShort c.", chunks.first.content
+  end
+
+  test "removes markup a browser treats as a comment" do
+    assert_equal "A  B  C.", chunk("A <!--> B <?php echo 1 ?> C.\n").first.content
+  end
+
+  test "removes inline script and style elements with their contents" do
+    assert_equal "Text  more  end.", chunk("Text <script>bad()</script> more <style>p { color: red }</style> end.\n").first.content
+  end
+
+  test "an unclosed inline script hides the rest of its paragraph only" do
+    assert_equal "Text\n\nNext.", chunk("Text <script>bad()\nstill hidden\n\nNext.\n").first.content
+  end
+
+  test "removes a comment inside an HTML block that also has text" do
+    assert_equal "<div>\nHello  world\n</div>", chunk("<div>\nHello <!-- hidden --> world\n</div>\n").first.content
+  end
+
+  test "removes a script from an HTML block that also has text" do
+    assert_equal "<div>Text</div>", chunk("<div>Text</div>\n<script>track()</script>\n").first.content
+  end
+
+  test "an unterminated comment in an HTML block hides the rest of the block" do
+    assert_equal "<div>Visible </div>", chunk("<div>Visible <!-- never closed\nhidden\n</div>\n").first.content
+  end
+
+  test "re-serializes only an HTML block that had something removed" do
+    chunks = chunk("<div class=x>Text<br/><!-- c --></div>\n\n<div class=y>Kept<br/></div>\n")
+
+    assert_equal "<div class=\"x\">Text<br></div>\n\n<div class=y>Kept<br/></div>", chunks.first.content
+  end
+
+  test "keeps comments, scripts, styles, and entities in code" do
+    fenced = "```html\n<!-- c --> <script>x()</script> <style>p {}</style> &nbsp;\n```"
+    indented = "    <!-- c --> <script>x()</script>"
+    span = "Use `<!-- c -->` and `<script>x()</script>` here."
+    chunks = chunk("#{fenced}\n\n#{span}\n\n#{indented}\n")
+
+    assert_equal [ fenced, span, indented ].join("\n\n"), chunks.first.content
+  end
+
+  test "keeps an unterminated comment that renders as text" do
+    assert_equal "Text <!-- never closed\n\nNext.", chunk("Text <!-- never closed\n\nNext.\n").first.content
+  end
+
+  test "logs how many comments and script or style elements were removed" do
+    log = StringIO.new
+    chunk("A <!-- a --> B <script>x()</script>.\n\n<div>T <!-- b --></div>\n\n<style>p {}</style>\n", logger: Logger.new(log))
+
+    assert_includes log.string, "Removed 2 HTML comment(s) and 2 script or style element(s) in \"Doc\""
+  end
+
+  test "logs nothing about removal when nothing was removed" do
+    log = StringIO.new
+    chunk("Body.\n\n<details><summary>More</summary>\n", logger: Logger.new(log))
+
+    assert_not_includes log.string, "Removed"
   end
 
   test "drops mermaid diagrams and logs how many were skipped" do
@@ -345,7 +448,7 @@ class Chunking::MarkdownChunkerTest < ActiveSupport::TestCase
   end
 
   test "fingerprint combines the version with a short settings digest" do
-    assert_match(/\A2:\h{12}\z/, Chunking::MarkdownChunker.new.fingerprint)
+    assert_match(/\A3:\h{12}\z/, Chunking::MarkdownChunker.new.fingerprint)
   end
 
   test "fingerprint is stable for the same settings" do
