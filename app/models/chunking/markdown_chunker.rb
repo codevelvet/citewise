@@ -4,19 +4,18 @@ module Chunking
   #   Chunking::MarkdownChunker.new.call(markdown, title: "Engineering")
   #   # => [#<data Chunking::Chunk content=..., heading_path=["Engineering", "Culture"], ...>, ...]
   #
-  # Chunk content is the original Markdown source of a section's body. Headings
+  # Chunk content is the original Markdown source of a section's body, minus HTML
+  # that renders invisibly: comments, and <script> and <style> elements. Headings
   # live in heading_path, which always starts with the document title.
   class MarkdownChunker
     # Bump whenever chunking logic changes, so #fingerprint shows which documents older code chunked.
-    VERSION = 2
+    VERSION = 3
     PARSE_OPTIONS = { extension: { table: true, front_matter_delimiter: "---" } }.freeze
     # Never split, and never used as overlap.
     ATOMIC_TYPES = %i[code_block table].freeze
     SENTENCE_BOUNDARY = /(?<=[.!?])\s+/
     # Hugo shortcode tags such as {{% note %}}, {{< figure src="x" >}}, and {{% /note %}}.
     SHORTCODE = /\{\{[<%].*?[%>]\}\}/m
-    # Reduces an HTML block to its text, to tell whether it has any.
-    TEXT_ONLY = Rails::HTML5::FullSanitizer.new
     # How tiny pieces merge with a neighbor:
     #   :none           - never
     #   :within_section - only when the larger piece keeps its own path, e.g. a short subsection into its parent
@@ -78,6 +77,7 @@ module Chunking
         headings = []
         sections = [ Section.new(heading_path: [ title ], headings: [], blocks: []) ]
         skipped_diagrams = 0
+        removed = { comments: 0, elements: 0 }
 
         document.each do |node|
           case node.type
@@ -85,29 +85,80 @@ module Chunking
             next
           when :heading
             headings.pop while headings.any? && headings.last[:level] >= node.header_level
-            headings.push(level: node.header_level, text: plain_text(node), source: source(node, lines))
+            headings.push(level: node.header_level, text: plain_text(node), source: source(node, lines, hidden_spans(node, lines, removed)))
             sections << Section.new(heading_path: [ title, *headings.pluck(:text) ], headings: headings.pluck(:source), blocks: [])
           else
             # Diagram source is mostly syntax: it retrieves poorly and adds keyword-search noise.
             if node.type == :code_block && node.fence_info.split.first == "mermaid"
               skipped_diagrams += 1
-            elsif (block = block(node, lines))
+            elsif (block = block(node, lines, removed))
               sections.last.blocks << block
             end
           end
         end
 
         logger.info("Skipped #{skipped_diagrams} mermaid code block(s) in #{title.inspect}") if skipped_diagrams.positive?
+        if removed.values.any?(&:positive?)
+          logger.info("Removed #{removed[:comments]} HTML comment(s) and #{removed[:elements]} script or style element(s) in #{title.inspect}")
+        end
         sections.reject { |section| section.blocks.empty? }
       end
 
       # nil for a block with no real content, such as an HTML wrapper <div> or a lone shortcode.
-      def block(node, lines)
-        text = clean(node, source(node, lines))
-        return if text.blank? || (node.type == :html_block && TEXT_ONLY.sanitize(text).blank?)
+      def block(node, lines, removed)
+        hidden = hidden_spans(node, lines, removed)
+        text = clean(node, source(node, lines, hidden))
+        text = visible_html(text, removed) if node.type == :html_block
+        return if text.blank?
 
-        items = node.type == :list ? node.map { |item| clean(item, source(item, lines)) }.compact_blank : [ text ]
+        items = node.type == :list ? node.map { |item| clean(item, source(item, lines, hidden)) }.compact_blank : [ text ]
         Block.new(type: node.type, text: text, items: items)
+      end
+
+      # An HTML block without its comments, <script>, and <style>, or nil when no text
+      # remains (entities such as &nbsp; are decoded first). The block is re-serialized
+      # only when something was removed, which normalizes its markup. An unterminated
+      # comment hides the rest of the block, as it does in a browser.
+      def visible_html(html, removed)
+        fragment = Nokogiri::HTML5.fragment(html)
+        hidden = fragment.xpath(".//comment() | .//script | .//style").each(&:remove)
+        removed[:comments] += hidden.count(&:comment?)
+        removed[:elements] += hidden.count(&:element?)
+        return if fragment.text.blank?
+
+        hidden.empty? ? html : fragment.to_html.strip
+      end
+
+      # [first, last] source positions of inline HTML that renders invisibly: comments
+      # (including markup a browser treats as one, like <?php ?>), and <script> or
+      # <style> elements with their contents. Code spans and code blocks never contain
+      # html_inline nodes, so they keep their source as written.
+      def hidden_spans(node, lines, removed)
+        spans = []
+        node.walk do |container|
+          next unless container.type.in?(%i[paragraph heading table_cell])
+
+          opened = nil
+          container.walk do |inline|
+            next unless inline.type == :html_inline
+
+            html = between(lines, start_of(inline), end_of(inline))
+            if opened
+              next unless html.downcase.start_with?("</#{opened[:name]}")
+              spans << [ opened[:start], end_of(inline) ]
+              opened = nil
+            elsif (tag = Nokogiri::HTML5.fragment(html).children.first)&.comment?
+              spans << [ start_of(inline), end_of(inline) ]
+              removed[:comments] += 1
+            elsif tag&.name.in?(%w[script style])
+              opened = { name: tag.name, start: start_of(inline) }
+              removed[:elements] += 1
+            end
+          end
+          # A browser hides everything after an unclosed <script> or <style>; stop at the end of the paragraph.
+          spans << [ opened[:start], end_of(container) ] if opened
+        end
+        spans
       end
 
       # Removes Hugo shortcode tags, keeping any text they wrap.
@@ -217,12 +268,37 @@ module Chunking
       end
 
       # Lines spanned by a node, taken verbatim from the input so fences, tables,
-      # and lists keep their exact Markdown.
-      def source(node, lines)
+      # and lists keep their exact Markdown, minus the hidden spans inside them.
+      def source(node, lines, hidden = [])
         position = node.source_position
         # A node ending at column 0 actually ends on the previous line.
         last_line = position[:end_column].zero? ? position[:end_line] - 1 : position[:end_line]
-        lines[(position[:start_line] - 1)...last_line].join.rstrip
+        text = lines[(position[:start_line] - 1)...last_line].join
+        # Spans are in document order; cutting from the end keeps earlier offsets valid.
+        hidden.reverse_each do |first, last|
+          next unless first.first >= position[:start_line] && last.first <= last_line
+          text.bytesplice(offset(lines, position[:start_line], first)..offset(lines, position[:start_line], last), "")
+        end
+        text.rstrip
+      end
+
+      # Source text from position first through position last, inclusive.
+      def between(lines, first, last)
+        lines[(first.first - 1)...last.first].join.byteslice(offset(lines, first.first, first)..offset(lines, first.first, last))
+      end
+
+      # Byte offset of a [line, column] position in the text that starts at start_line.
+      # Commonmarker counts columns in bytes, from 1.
+      def offset(lines, start_line, (line, column))
+        lines[(start_line - 1)...(line - 1)].sum(&:bytesize) + column - 1
+      end
+
+      def start_of(node)
+        node.source_position.values_at(:start_line, :start_column)
+      end
+
+      def end_of(node)
+        node.source_position.values_at(:end_line, :end_column)
       end
 
       def plain_text(node)
