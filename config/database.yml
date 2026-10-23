@@ -29,7 +29,9 @@ development:
   primary:
     <<: *default
     database: citewise_development
-    template: citewise_vector_template
+    <% if ENV["DB_TEMPLATE"] && !ENV["DB_TEMPLATE"].empty? %>
+    template: <%= ENV.fetch("DB_TEMPLATE") %>
+    <% end %>
   queue:
     <<: *default
     database: citewise_development_queue
@@ -73,7 +75,9 @@ test:
   primary:
     <<: *default
     database: citewise_test
-    template: citewise_vector_template
+    <% if ENV["DB_TEMPLATE"] && !ENV["DB_TEMPLATE"].empty? %>
+    template: <%= ENV.fetch("DB_TEMPLATE") %>
+    <% end %>
   queue:
     <<: *default
     database: citewise_test_queue
