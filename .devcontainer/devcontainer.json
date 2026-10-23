@@ -15,8 +15,8 @@
 
   "containerEnv": {
     "DB_HOST": "postgres",
-    "DB_USER": "postgres",
-    "DB_PASSWORD": "devpassword"
+    "DB_USER": "citewise_app",
+    "DB_PASSWORD": "citewise-local-development"
   },
 
   "customizations": {
@@ -29,7 +29,8 @@
   },
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
-  "forwardPorts": [3000, "postgres:5432"],
+  // Do not forward the database port
+  "forwardPorts": [3000],
   "otherPortsAttributes": {
     "onAutoForward": "ignore"
   },
