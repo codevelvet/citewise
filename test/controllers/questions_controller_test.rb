@@ -1,6 +1,7 @@
 require "test_helper"
 
 class QuestionsControllerTest < ActionDispatch::IntegrationTest
+  include TestData
   include ActiveJob::TestHelper
   include StubHelper
 

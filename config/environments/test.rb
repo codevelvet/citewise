@@ -56,10 +56,4 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
-
-  # PostgreSQL enforces foreign keys during fixture loading.
-  # Skip Rails' additional check, which writes to pg_catalog.pg_constraint
-  # and requires privileges the application role intentionally lacks.
-  # Added since running limited permissioned postgres db container
-  config.active_record.verify_foreign_keys_for_fixtures = false
 end

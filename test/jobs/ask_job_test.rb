@@ -2,6 +2,7 @@ require "test_helper"
 require "turbo/broadcastable/test_helper"
 
 class AskJobTest < ActiveJob::TestCase
+  include TestData
   include FakeAnswerer::TestHelper
   include Turbo::Broadcastable::TestHelper
 

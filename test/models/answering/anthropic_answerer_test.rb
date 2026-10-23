@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
+  include TestData
+
   ENDPOINT = "https://api.anthropic.com/v1/messages"
   QUESTION = "How much paid leave do I get?"
   LEAVE_DETAILS_PARAGRAPHS = [

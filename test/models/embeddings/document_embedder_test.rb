@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Embeddings::DocumentEmbedderTest < ActiveSupport::TestCase
+  include TestData
+
   class RecordingLimiter
     attr_reader :acquired
 

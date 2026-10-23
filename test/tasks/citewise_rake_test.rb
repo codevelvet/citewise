@@ -2,6 +2,7 @@ require "test_helper"
 require "rake"
 
 class CitewiseRakeTest < ActiveSupport::TestCase
+  include TestData
   include ActiveJob::TestHelper
   include FakeAnswerer::TestHelper
 
