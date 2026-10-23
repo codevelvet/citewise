@@ -47,6 +47,9 @@
 /.devcontainer
 !/.devcontainer/init-firewall.sh
 !/.devcontainer/managed-settings.json
+!/.devcontainer/setup-when-rubygems-ready.sh
+!/.devcontainer/verify-security.sh
+!/.devcontainer/entrypoint.sh
 
 # Ignore Docker-related files
 /.dockerignore
