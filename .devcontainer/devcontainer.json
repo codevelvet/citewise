@@ -47,7 +47,7 @@
   // Use 'postCreateCommand' to run commands after the container is created.
   // Note: runs in parallel with entrypoint hence the wait
   "postCreateCommand": "sh /usr/local/bin/citewise-setup-when-rubygems-ready.sh",
-  "waitFor": "postCreateCommand"
+  "waitFor": "postCreateCommand",
 
   // Tripwires: warn if the SSH agent leaks in or the firewall isn't active
   "postAttachCommand": "ssh-add -l >/dev/null 2>&1 && echo '⚠️  WARNING: SSH agent has keys inside the container'; curl -s --max-time 3 https://example.com >/dev/null 2>&1 && echo '⚠️  WARNING: FIREWALL NOT ACTIVE' || true"
