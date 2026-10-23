@@ -1,11 +1,12 @@
 require "test_helper"
 
 class DocumentTest < ActiveSupport::TestCase
+  include TestData
   include ActiveJob::TestHelper
   include FakeEmbedder::TestHelper
   include StubHelper
 
-  test "fixtures are valid" do
+  test "test data is valid" do
     assert documents(:handbook).valid?
     assert documents(:pending_upload).valid?
   end

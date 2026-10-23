@@ -1,6 +1,7 @@
 require "test_helper"
 
 class EmbedDocumentJobTest < ActiveJob::TestCase
+  include TestData
   include FakeEmbedder::TestHelper
 
   setup do

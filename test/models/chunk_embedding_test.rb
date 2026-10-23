@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ChunkEmbeddingTest < ActiveSupport::TestCase
+  include TestData
+
   test "is valid with a chunk, model, strategy, and matching dimensions" do
     assert build_embedding.valid?
   end

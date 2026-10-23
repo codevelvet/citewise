@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Question::CitedAnswerTest < ActiveSupport::TestCase
+  include TestData
+
   Text = Question::CitedAnswer::Text
   Marker = Question::CitedAnswer::Marker
 

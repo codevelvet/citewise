@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Ingestion::DocumentIngesterTest < ActiveSupport::TestCase
+  include TestData
   include ActiveJob::TestHelper
   include FakeEmbedder::TestHelper
   include StubHelper

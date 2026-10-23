@@ -1,6 +1,7 @@
 require "test_helper"
 
 class Answering::AskServiceTest < ActiveSupport::TestCase
+  include TestData
   include FakeAnswerer::TestHelper
 
   QUESTION = "How much paid leave do I get?"

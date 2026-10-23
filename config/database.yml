@@ -20,8 +20,8 @@ default: &default
   max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   <% if ENV["DB_HOST"] %>
   host: <%= ENV["DB_HOST"] %>
-  username: <%= ENV.fetch("DB_USER", "postgres") %>
-  password: <%= ENV.fetch("DB_PASSWORD", "devpassword") %>
+  username: <%= ENV.fetch("DB_USER") %>
+  password: <%= ENV.fetch("DB_PASSWORD") %>
   <% end %>
 
 
@@ -29,6 +29,9 @@ development:
   primary:
     <<: *default
     database: citewise_development
+    <% if ENV["DB_TEMPLATE"] && !ENV["DB_TEMPLATE"].empty? %>
+    template: <%= ENV.fetch("DB_TEMPLATE") %>
+    <% end %>
   queue:
     <<: *default
     database: citewise_development_queue
@@ -72,6 +75,9 @@ test:
   primary:
     <<: *default
     database: citewise_test
+    <% if ENV["DB_TEMPLATE"] && !ENV["DB_TEMPLATE"].empty? %>
+    template: <%= ENV.fetch("DB_TEMPLATE") %>
+    <% end %>
   queue:
     <<: *default
     database: citewise_test_queue

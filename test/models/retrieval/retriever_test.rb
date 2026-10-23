@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Retrieval::RetrieverTest < ActiveSupport::TestCase
+  include TestData
+
   setup do
     @query = axis(0)
     query = @query

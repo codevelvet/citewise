@@ -1,7 +1,9 @@
 require "test_helper"
 
 class ChunkTest < ActiveSupport::TestCase
-  test "fixtures are valid" do
+  include TestData
+
+  test "test data is valid" do
     assert chunks(:intro).valid?
     assert chunks(:leave).valid?
   end

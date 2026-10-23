@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IngestDocumentJobTest < ActiveJob::TestCase
+  include TestData
+
   setup do
     @document = Document.create!(title: "Doc", source_type: :upload)
     @document.file.attach(io: StringIO.new("# Doc\n\nBody.\n"), filename: "doc.md", content_type: "text/markdown")
