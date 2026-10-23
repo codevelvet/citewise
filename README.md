@@ -51,16 +51,71 @@ Ruby, Postgres, and gems don't need to be installed on the host. They all live i
    `.env` is git- and docker-ignored.
    Dotenv reads it each time Rails boots, so restart the server or job worker after changing it.
 
-3. Start the devcontainer (next section). On first creation it runs `bin/setup --skip-server`, which installs gems and creates and migrates the database. Nothing else needs to be set up by hand.
+3. Start the devcontainer (next section). On first creation it runs `bin/setup --skip-server`, which installs gems and creates and migrates the database. 
 
 ## Devcontainer
 
 The devcontainer is a Docker Compose project named `citewise` with two services:
 
 - `rails-app`: the Ruby/Rails development container, with the workspace mounted at `/workspaces/citewise`
-- `postgres`: PostgreSQL 17 + pgvector. Data persists in the `citewise_postgres-data` volume. The `vector` extension is enabled on first start of an empty volume.
+- `postgres`: PostgreSQL 17 + pgvector. Data persists in the `citewise_postgres-data` volume. The `vector` extension is enabled via a template.
 
-Inside the container the app connects to Postgres at host `postgres`, user `postgres`, password `devpassword`.
+Inside the container the app connects to Postgres at host `postgres`, user `citewise_app`, password `citewise-local-development`.
+```
+    "DB_HOST": "postgres",
+    "DB_USER": "citewise_app",
+    "DB_PASSWORD": "citewise-local-development",
+    "DB_TEMPLATE": "citewise_vector_template"
+```
+`citewise_app` is a non-superuser development role with permissions to create databases.
+
+### Prepare Docker resources
+Run these commands from a terminal on your host machine, outside the devcontainer.
+
+Create the private database network once:
+```
+docker network create \
+  --driver bridge \
+  --internal \
+  --opt com.docker.network.bridge.gateway_mode_ipv4=isolated \
+  citewise-db-private
+```
+
+If Docker does not support isolated gateway mode, update Docker Desktop before continuing.
+
+Create the administrator password file outside the repository:
+```
+mkdir -p "$HOME/.config/citewise"
+chmod 700 "$HOME/.config/citewise"
+
+(
+  umask 077
+  if [ ! -f "$HOME/.config/citewise/postgres-admin-password" ]; then
+    openssl rand -hex 32 \
+      > "$HOME/.config/citewise/postgres-admin-password"
+  fi
+)
+```
+The password file is mounted only into PostgreSQL. Do not commit it, copy it into the workspace, or expose it to the Rails container.
+
+These resources persist across container rebuilds. Do not regenerate the password file to rotate an existing database password: changing the file alone does not change PostgreSQL’s stored password.
+
+After preparing the host resources, reopen the project in the devcontainer. On an empty database volume, PostgreSQL initialization scripts create the application role, vector template, and development/test databases. The devcontainer then runs bin/setup --skip-server.
+
+Rebuilding a container preserves the database volume and does not rerun PostgreSQL initialization scripts.
+
+To discard all development/test database data and rerun initialization, close the devcontainer and run this from the host at the repository root:
+```
+docker compose -f .devcontainer/compose.yaml down --volumes
+```
+Then reopen/rebuild the devcontainer. The external network and host password file remain available.
+
+### Security
+PostgreSQL rejects administrator logins over TCP. Trusted administration runs from the host through docker compose exec, using the database container’s local socket.
+
+The devcontainer sets DB_TEMPLATE=citewise_vector_template. Primary development and test databases inherit the preinstalled vector extension from this template. Queue and cable databases use PostgreSQL’s default template.
+
+Do not expose the Docker socket, Docker API credentials, or administrator password to the Rails container.
 
 ### Start
 
