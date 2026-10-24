@@ -74,6 +74,20 @@ check_database
     *) fail "COPY TO PROGRAM failed for an unexpected reason: $out" ;;
   esac
 
+# 4. SSH: No ssh keys or agent
+echo "Testing ssh restrictions..."
+check_ssh_at_start() {
+  # No private keys baked into the image or mounted in.
+  for f in "$HOME"/.ssh/id_* /root/.ssh/id_*; do
+    case "$f" in *.pub|*'*'*) continue ;; esac
+    [ -e "$f" ] && fail "private SSH key present in container: $f"
+  done
+  # No agent socket passed in through the container's environment.
+  [ -n "${SSH_AUTH_SOCK:-}" ] && fail "SSH_AUTH_SOCK is set at container start: $SSH_AUTH_SOCK"
+  echo "✅ No SSH keys or agent at container start."
+}
+check_ssh_at_start
+
 echo "🛡️ All security checks passed. Initializing AI Agent..."
 echo "=================================================="
 
