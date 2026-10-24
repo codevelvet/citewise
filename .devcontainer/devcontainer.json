@@ -6,6 +6,9 @@
   "service": "rails-app",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 
+   // CRITICAL: Force the tool (VSCode) to respect your Dockerfile's ENTRYPOINT
+  "overrideCommand": false,
+
   // Features to add to the dev container. More info: https://containers.dev/features.
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
