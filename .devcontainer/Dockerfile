@@ -26,4 +26,24 @@ RUN chown root:root /usr/local/bin/citewise-firewall.sh \
  && echo 'vscode ALL=(root) NOPASSWD: /usr/local/bin/citewise-firewall.sh ""' > /etc/sudoers.d/vscode-firewall \
  && chmod 0440 /etc/sudoers.d/vscode-firewall \
  && visudo -c
+
+# Critical security checks which must pass or the devcontainer is not started
+COPY .devcontainer/verify-security.sh /usr/local/bin/citewise-verify-security.sh
+RUN chown root:root /usr/local/bin/citewise-verify-security.sh \
+ && chmod 0755 /usr/local/bin/citewise-verify-security.sh
+
+# ./bin/setup when rubygems available
+COPY .devcontainer/setup-when-rubygems-ready.sh /usr/local/bin/citewise-setup-when-rubygems-ready.sh
+RUN chown root:root /usr/local/bin/citewise-setup-when-rubygems-ready.sh \
+ && chmod 0755 /usr/local/bin/citewise-setup-when-rubygems-ready.sh
+
+# Copy the script from your host machine to an absolute path in the image
+COPY .devcontainer/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chown root:root /usr/local/bin/entrypoint.sh \
+  && chmod 0755 /usr/local/bin/entrypoint.sh
+
 USER vscode
+
+# Use the absolute path in the ENTRYPOINT
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
