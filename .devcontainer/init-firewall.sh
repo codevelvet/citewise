@@ -226,6 +226,3 @@ if [ -e /proc/net/if_inet6 ] && [ "$(ip6tables -S OUTPUT | head -1)" != "-P OUTP
 fi
 echo "Firewall verification passed - default policies are DROP"
 
-# Network is now secure and open! Signal the setup script:
-echo "Firewall setup complete. Signaling readiness..."
-echo "ready" > /tmp/firewall_ready.lock

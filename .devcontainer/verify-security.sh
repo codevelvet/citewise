@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -eu
 
 FORBIDDEN_PUBLIC_IP="8.8.8.8"     # A public IP that SHOULD be blocked
 
@@ -22,6 +22,7 @@ for url in "https://$FORBIDDEN_PUBLIC_IP" "http://$FORBIDDEN_PUBLIC_IP"; do
     *) fail "egress to $url not blocked (curl exit $rc)" ;;
   esac
 done
+echo "✅ Egress restriction verified."
 
 # 2. DATABASE CHECK: Verify permissions
 echo "Testing database restrictions..."
@@ -63,16 +64,16 @@ check_database() {
 check_database
 
 # 3. DATABASE CHECK: Verify no copy to/from container
-  # Running a program on the database host must be refused.
-  out=$(PGPASSWORD="$DB_PASSWORD" PGCONNECT_TIMEOUT=5 \
-        psql -h "$DB_HOST" -U "$DB_USER" -d citewise_development \
-             -X -v ON_ERROR_STOP=1 -c "COPY (SELECT 1) TO PROGRAM 'true'" 2>&1) && \
-    fail "COPY TO PROGRAM succeeded: $DB_USER can run programs on the database host"
-  case "$out" in
-    *"permission denied to COPY to or from an external program"*)
-      echo "✅ COPY TO PROGRAM is denied." ;;
-    *) fail "COPY TO PROGRAM failed for an unexpected reason: $out" ;;
-  esac
+# Running a program on the database host must be refused.
+out=$(PGPASSWORD="$DB_PASSWORD" PGCONNECT_TIMEOUT=5 \
+  psql -h "$DB_HOST" -U "$DB_USER" -d citewise_development \
+    -X -v ON_ERROR_STOP=1 -c "COPY (SELECT 1) TO PROGRAM 'true'" 2>&1) && \
+  fail "COPY TO PROGRAM succeeded: $DB_USER can run programs on the database host"
+case "$out" in
+  *"permission denied to COPY to or from an external program"*)
+    echo "✅ COPY TO PROGRAM is denied." ;;
+  *) fail "COPY TO PROGRAM failed for an unexpected reason: $out" ;;
+esac
 
 # 4. SSH: No ssh keys or agent
 echo "Testing ssh restrictions..."
@@ -88,7 +89,10 @@ check_ssh_at_start() {
 }
 check_ssh_at_start
 
-echo "🛡️ All security checks passed. Initializing AI Agent..."
-echo "=================================================="
+# Signal the setup script:
+echo "Firewall setup complete. Signaling readiness..."
+echo "ready" > /tmp/firewall_ready.lock
 
+echo "🛡️ All security checks passed. Starting container ..."
+echo "=================================================="
 
