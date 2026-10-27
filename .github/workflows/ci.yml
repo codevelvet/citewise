@@ -190,6 +190,45 @@ jobs:
         run: docker build -t citewise:ci .
       - name: Scan image
         run: '"$RUNNER_TEMP/bin/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --ignorefile .trivyignore.yaml --exit-code 1 --no-progress citewise:ci'
+  system-test:
+    name: system-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      RAILS_ENV: test
+      DB_HOST: localhost
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      PLAYWRIGHT_VERSION: 1.64.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@26e5b7d197ebf60545ee9667bcbace0be11ccaec # v1.334.0
+        with:
+          bundler-cache: true
+      - name: Install Playwright and browsers
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" "playwright@${PLAYWRIGHT_VERSION}"
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium webkit
+      - name: Prepare database
+        run: bin/rails db:prepare
+      - name: Run system tests
+        env:
+          PLAYWRIGHT_CLI: ${{ runner.temp }}/playwright/node_modules/.bin/playwright
+        run: bin/rails test:system
 
   workflow-lint:
     name: workflow-lint
