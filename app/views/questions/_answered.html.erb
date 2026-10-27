@@ -1,5 +1,7 @@
-<%# Stacked below Tailwind's lg breakpoint (64rem); at and above it, the sources form a sticky rail with its own scroll. %>
-<div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+<%# Stacked below Tailwind's lg breakpoint (64rem); at and above it, the sources form a sticky rail with its own scroll.
+    The citations controller enhances markers and cards; without it, markers link to fully shown cards. %>
+<%= tag.div class: "grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]",
+      data: ({ controller: "citations", action: "keydown.esc@window->citations#closeSheet" } if cited.sources.any?) do %>
   <article aria-label="Answer" class="min-w-0 rounded-xl border border-line bg-white p-6 sm:p-8">
     <% if question.incomplete? %>
       <% title, explanation = incomplete_notice(question) %>
@@ -39,18 +41,25 @@
     <aside aria-labelledby="sources-heading" class="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
       <h2 id="sources-heading" class="mb-1 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">Sources</h2>
       <% cited.sources.each do |source| %>
-        <section id="source-<%= source.number %>" data-source-number="<%= source.number %>"
-                 aria-labelledby="source-<%= source.number %>-title" class="scroll-mt-4 rounded-xl border border-line bg-white target:border-link">
-          <div class="flex items-start gap-3 px-4 py-3.5">
-            <span aria-hidden="true" class="inline-flex size-7 flex-none items-center justify-center rounded-md bg-marker text-[13px] font-semibold text-marker-ink"><%= source.number %></span>
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <h3 id="source-<%= source.number %>-title" class="font-semibold"><span class="sr-only">Source <%= source.number %>: </span><%= source.document_title %></h3>
-              <p class="text-[13px] leading-[1.4] break-words text-muted"><%= source.source_title %></p>
-            </div>
-          </div>
-          <div class="flex flex-col gap-3 px-4 pb-4 sm:pl-14">
+        <section id="source-<%= source.number %>" data-source-number="<%= source.number %>" data-citations-target="card"
+                 aria-labelledby="source-<%= source.number %>-title"
+                 class="group scroll-mt-4 rounded-xl border border-line bg-white target:border-link data-selected:border-link">
+          <%# The controller swaps the header for a button with the same classes and content. %>
+          <h3>
+            <span data-citations-target="header" class="flex min-h-11 w-full items-start gap-3 px-4 py-3.5 text-left">
+              <span aria-hidden="true" class="inline-flex size-7 flex-none items-center justify-center rounded-md bg-marker text-[13px] font-semibold text-marker-ink group-data-selected:bg-link group-data-selected:text-white"><%= source.number %></span>
+              <span class="flex min-w-0 flex-col gap-0.5">
+                <span id="source-<%= source.number %>-title" class="font-semibold"><span class="sr-only">Source <%= source.number %>: </span><%= source.document_title %></span>
+                <span id="source-<%= source.number %>-path" class="text-[13px] leading-[1.4] font-normal break-words text-muted"><%= source.source_title %></span>
+              </span>
+            </span>
+          </h3>
+          <div id="source-<%= source.number %>-passages" data-action="beforematch->citations#reveal" class="flex flex-col gap-3 px-4 pb-4 sm:pl-14">
             <% source.passages.each do |passage| %>
-              <blockquote data-citation-ids="<%= passage.citation_ids.join(" ") %>" class="flex flex-col gap-2 rounded-lg bg-canvas p-3 text-sm leading-[1.6] break-words">
+              <%# Marked data-cited by the controller when the selected marker's span cites it. %>
+              <blockquote data-citation-ids="<%= passage.citation_ids.join(" ") %>"
+                          class="group/passage flex flex-col gap-2 rounded-lg bg-canvas p-3 text-sm leading-[1.6] break-words data-cited:bg-cited">
+                <span class="hidden self-start rounded-full bg-link px-2 py-0.5 text-xs font-semibold text-white group-data-cited/passage:inline-block">Cited here</span>
                 <div class="passage"><%= Question::PassageRenderer.render(passage.text) %></div>
               </blockquote>
             <% end %>
@@ -58,5 +67,35 @@
         </section>
       <% end %>
     </aside>
+
+    <%# A non-modal bottom sheet below lg, filled from a card's markup. Closed, so never shown without JavaScript. %>
+    <dialog id="source-sheet" data-citations-target="sheet" aria-labelledby="source-sheet-title"
+            class="fixed inset-x-0 top-auto bottom-0 z-50 m-0 max-h-[50dvh] w-full max-w-none flex-col rounded-t-2xl border-t border-line bg-white p-0 text-ink shadow-[0_-8px_28px_rgba(20,24,30,0.16)] open:flex motion-safe:animate-[sheet-up_200ms_ease-out]">
+      <div aria-hidden="true" class="flex flex-none justify-center pt-2 pb-0.5"><div class="h-[5px] w-9 rounded-full bg-field"></div></div>
+      <div class="flex flex-none items-start gap-3 pt-1.5 pr-1.5 pb-2.5 pl-4">
+        <span data-citations-target="sheetNumber" aria-hidden="true" class="mt-0.5 inline-flex size-7 flex-none items-center justify-center rounded-md bg-link text-[13px] font-semibold text-white"></span>
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 id="source-sheet-title" tabindex="-1" data-citations-target="sheetTitle" class="text-[15px] font-semibold"></h2>
+          <p data-citations-target="sheetPath" class="text-xs leading-[1.4] break-words text-muted"></p>
+        </div>
+        <button type="button" aria-label="Close source" data-action="citations#closeSheet"
+                class="inline-flex size-11 flex-none cursor-pointer items-center justify-center rounded-lg text-ink-soft hover:bg-canvas">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </button>
+      </div>
+      <div data-citations-target="sheetPassage" data-action="pointerdown->citations#swipeStart pointerup->citations#swipeEnd"
+           class="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-4 pb-3"></div>
+      <div data-citations-target="pager" class="flex flex-none items-center justify-between gap-2 border-t border-skeleton px-2 pt-1 pb-3">
+        <button type="button" aria-label="Previous passage" data-citations-target="previous" data-action="citations#previous"
+                class="inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-line bg-white text-ink disabled:cursor-default disabled:text-field">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M11 4L6 9l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <p data-citations-target="pageStatus" aria-live="polite" class="text-xs text-muted"></p>
+        <button type="button" aria-label="Next passage" data-citations-target="next" data-action="citations#next"
+                class="inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-line bg-white text-ink disabled:cursor-default disabled:text-field">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M7 4l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+      </div>
+    </dialog>
   <% end %>
-</div>
+<% end %>
