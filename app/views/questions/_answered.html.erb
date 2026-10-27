@@ -50,9 +50,7 @@
           <div class="flex flex-col gap-3 px-4 pb-4 sm:pl-14">
             <% source.passages.each do |passage| %>
               <blockquote data-citation-ids="<%= passage.citation_ids.join(" ") %>" class="flex flex-col gap-2 rounded-lg bg-canvas p-3 text-sm leading-[1.6] break-words">
-                <% passage.paragraphs.each do |paragraph| %>
-                  <p class="whitespace-pre-line"><%= paragraph %></p>
-                <% end %>
+                <div class="passage"><%= Question::PassageRenderer.render(passage.text) %></div>
               </blockquote>
             <% end %>
           </div>

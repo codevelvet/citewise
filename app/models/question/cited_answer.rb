@@ -16,8 +16,8 @@ class Question
     # citation_ids is empty for uncited text.
     Text = Data.define(:text, :citation_ids, :numbers)
     Marker = Data.define(:number)
-    # paragraphs is the cited text split at blank lines.
-    Passage = Data.define(:citation_ids, :paragraphs)
+    # text is the cited Markdown, for PassageRenderer.
+    Passage = Data.define(:citation_ids, :text)
     Source = Data.define(:number, :document_title, :source_title, :passages)
 
     PARAGRAPH_BREAK = /\n[ \t]*\n\s*/
@@ -56,7 +56,7 @@ class Question
         @citations.each_with_index.group_by { |citation, _| citation["chunk_id"] }.map do |chunk_id, cited|
           first, _ = cited.first
           passages = cited.group_by { |citation, _| citation["cited_text"].to_s }.map do |text, same|
-            Passage.new(citation_ids: same.map(&:last), paragraphs: text.split(PARAGRAPH_BREAK).map(&:strip).reject(&:empty?))
+            Passage.new(citation_ids: same.map(&:last), text: text.strip)
           end
           Source.new(number: @numbers.fetch(chunk_id), document_title: first["document_title"], source_title: first["source_title"], passages: passages)
         end.sort_by(&:number)

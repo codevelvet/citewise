@@ -46,8 +46,8 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     assert_equal [ 1, 1 ], cited.paragraphs.first.grep(Marker).map(&:number)
     source = cited.sources.sole
     assert_equal [ 1, "Leave Policy", CARRY ], [ source.number, source.document_title, source.source_title ]
-    assert_equal [ [ [ 0 ], [ "Paid leave accrues monthly." ] ], [ [ 1 ], [ "### Carry-over", "Up to 5 days carry over." ] ] ],
-                 source.passages.map { [ it.citation_ids, it.paragraphs ] }
+    assert_equal [ [ [ 0 ], "Paid leave accrues monthly." ], [ [ 1 ], "### Carry-over\n\nUp to 5 days carry over." ] ],
+                 source.passages.map { [ it.citation_ids, it.text ] }
   end
 
   test "the same passage cited twice is listed once, naming both citations" do
@@ -118,7 +118,7 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     cited = Question::CitedAnswer.new(answer, [ citation(1, answer, answer, cited_text: "<b>bold</b>") ])
 
     assert_equal answer, cited.paragraphs.sole.first.text
-    assert_equal [ "<b>bold</b>" ], cited.sources.sole.passages.sole.paragraphs
+    assert_equal "<b>bold</b>", cited.sources.sole.passages.sole.text
   end
 
   test "Question#cited_answer uses the stored answer and citations" do
@@ -137,6 +137,6 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     end
 
     def chunk_of(source)
-      { "Passage of chunk 3." => 3, "Passage of chunk 7." => 7 }.fetch(source.passages.first.paragraphs.first)
+      { "Passage of chunk 3." => 3, "Passage of chunk 7." => 7 }.fetch(source.passages.first.text)
     end
 end
