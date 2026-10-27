@@ -44,6 +44,17 @@ RUN chown root:root /usr/local/bin/entrypoint.sh \
 
 USER vscode
 
+# Build-time checks: vscode may run only the firewall script as root, with no
+# arguments, and the security files must stay root-owned and unwritable.
+RUN ! sudo -n true 2>/dev/null \
+ && sudo -n -l /usr/local/bin/citewise-firewall.sh >/dev/null \
+ && ! sudo -n -l /usr/local/bin/citewise-firewall.sh --any-argument >/dev/null 2>&1 \
+ && test ! -e /etc/sudoers.d/vscode \
+ && test "$(stat -c '%U:%a' /etc/claude-code/managed-settings.json)" = "root:644" \
+ && for f in citewise-firewall.sh citewise-verify-security.sh entrypoint.sh; do \
+      test "$(stat -c '%U:%a' "/usr/local/bin/$f")" = "root:755" || exit 1; \
+    done
+
 # Use the absolute path in the ENTRYPOINT
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
