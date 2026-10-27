@@ -1,5 +1,6 @@
-<div class="flex flex-wrap items-start gap-8">
-  <article aria-label="Answer" class="min-w-0 flex-[999_1_560px] rounded-xl border border-line bg-white p-6 sm:p-8">
+<%# Stacked below Tailwind's lg breakpoint (64rem); at and above it, the sources form a sticky rail with its own scroll. %>
+<div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+  <article aria-label="Answer" class="min-w-0 rounded-xl border border-line bg-white p-6 sm:p-8">
     <% if question.incomplete? %>
       <% title, explanation = incomplete_notice(question) %>
       <div role="note" class="mb-7 flex items-start gap-3 rounded-[10px] border border-warning-line bg-warning px-4 py-3.5">
@@ -35,7 +36,7 @@
   </article>
 
   <% if cited.sources.any? %>
-    <aside aria-labelledby="sources-heading" class="flex min-w-0 flex-[1_1_340px] flex-col gap-3">
+    <aside aria-labelledby="sources-heading" class="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
       <h2 id="sources-heading" class="mb-1 text-[13px] font-semibold tracking-[0.06em] text-muted uppercase">Sources</h2>
       <% cited.sources.each do |source| %>
         <section id="source-<%= source.number %>" data-source-number="<%= source.number %>"
