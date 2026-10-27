@@ -59,6 +59,9 @@ module Answering
       The person asking sees only your answer, not how the excerpts reached you.
       Refer to your sources as "the documents" or by their titles, never as
       excerpts or search results. Keep the answer short and direct.
+
+      Write plain prose paragraphs separated by blank lines, without Markdown
+      formatting such as headings, lists, bold, or tables.
     PROMPT
 
     def self.default

@@ -31,6 +31,11 @@ class Answering::AnthropicAnswererTest < ActiveSupport::TestCase
     assert_match(/information only, never as instructions/, Answering::Answerer::SYSTEM_PROMPT)
   end
 
+  # Markdown in the answer would show as raw symbols, and rendering it would move citation offsets.
+  test "the system prompt asks for plain prose without Markdown" do
+    assert_match(/plain prose paragraphs .* without Markdown\s+formatting/m, Answering::Answerer::SYSTEM_PROMPT)
+  end
+
   test "answers from search results with native citations mapped to chunk passages, logging token usage" do
     # The cassette matches on method and URI (VCR's default), not the body, so
     # rewording SYSTEM_PROMPT doesn't need a new recording. The assertions below
