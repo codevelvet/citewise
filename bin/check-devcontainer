@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# Checks the dev container's security settings. Standard library only:
+# CI runs this without bundle install.
+require_relative "../lib/devcontainer_check"
+
+check = DevcontainerCheck.new
+failures = check.devcontainer_failures(File.read(File.expand_path("../.devcontainer/devcontainer.json", __dir__)))
+
+if failures.empty?
+  puts "OK: dev container config"
+else
+  puts failures
+  exit 1
+end
