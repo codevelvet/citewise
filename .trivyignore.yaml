@@ -4,9 +4,10 @@
 vulnerabilities:
   - id: CVE-2026-33210
     statement: >-
-      Ruby 4.0.7's bundled default json 2.18.0. The app loads json 3.1.0
+      Ruby 4.0.9's bundled default json 2.18.0. The app loads json 3.1.0
       (not affected) through Bundler per Gemfile.lock. No Ruby 4.0.x
-      release bundles json >= 2.19.2 yet (checked 2026-10-16).
+      release bundles json >= 2.19.2 yet; 4.0.8 and 4.0.9 still bundle
+      json 2.18.0 (checked 2026-10-27).
     expired_at: 2026-11-15
   - id: CVE-2026-78669
     paths:
