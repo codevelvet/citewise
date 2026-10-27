@@ -1,0 +1,159 @@
+{
+  "name": "citewise",
+  "networks": {
+    "database": {
+      "name": "citewise-db-private",
+      "ipam": {},
+      "external": true
+    },
+    "default": {
+      "name": "citewise_default",
+      "ipam": {}
+    }
+  },
+  "secrets": {
+    "postgres_admin_password": {
+      "name": "citewise_postgres_admin_password",
+      "file": "/HOST_HOME/.config/citewise/postgres-admin-password"
+    }
+  },
+  "services": {
+    "postgres": {
+      "restart": "unless-stopped",
+      "command": [
+        "postgres",
+        "-c",
+        "hba_file=/etc/postgresql/pg_hba.conf"
+      ],
+      "entrypoint": null,
+      "environment": {
+        "POSTGRES_DB": "postgres",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "POSTGRES_PASSWORD_FILE": "/run/secrets/postgres_admin_password",
+        "POSTGRES_USER": "postgres"
+      },
+      "image": "pgvector/pgvector:pg17",
+      "networks": {
+        "database": null
+      },
+      "secrets": [
+        {
+          "source": "postgres_admin_password",
+          "target": "/run/secrets/postgres_admin_password"
+        }
+      ],
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "postgres-data",
+          "target": "/var/lib/postgresql/data",
+          "volume": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.devcontainer/init-scripts",
+          "target": "/docker-entrypoint-initdb.d",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.devcontainer/pg_hba.conf",
+          "target": "/etc/postgresql/pg_hba.conf",
+          "read_only": true,
+          "bind": {}
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U citewise_app -d citewise_development"
+        ],
+        "timeout": "5s",
+        "interval": "5s",
+        "retries": 20,
+        "start_period": "10s"
+      }
+    },
+    "rails-app": {
+      "cap_add": [
+        "NET_ADMIN",
+        "NET_RAW"
+      ],
+      "command": [
+        "sleep",
+        "infinity"
+      ],
+      "entrypoint": null,
+      "networks": {
+        "database": null,
+        "default": null
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise",
+          "target": "/workspaces/citewise",
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.claude",
+          "target": "/workspaces/citewise/.claude",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.github",
+          "target": "/workspaces/citewise/.github",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.devcontainer",
+          "target": "/workspaces/citewise/.devcontainer",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.git/hooks",
+          "target": "/workspaces/citewise/.git/hooks",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/.git/config",
+          "target": "/workspaces/citewise/.git/config",
+          "read_only": true,
+          "bind": {}
+        },
+        {
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/CLAUDE.md",
+          "target": "/workspaces/citewise/CLAUDE.md",
+          "read_only": true,
+          "bind": {}
+        }
+      ],
+      "build": {
+        "context": "/HOST_WORKSPACE/citewise",
+        "dockerfile": ".devcontainer/Dockerfile"
+      },
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy",
+          "required": true
+        }
+      }
+    }
+  },
+  "volumes": {
+    "postgres-data": {
+      "name": "citewise_postgres-data"
+    }
+  }
+}

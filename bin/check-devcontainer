@@ -1,10 +1,22 @@
 #!/usr/bin/env ruby
 # Checks the dev container's security settings. Standard library only:
 # CI runs this without bundle install.
+#
+#   bin/check-devcontainer [--compose-json PATH]
+#
+# PATH is the output of `docker compose -f .devcontainer/compose.yaml config --format json`.
+require "optparse"
 require_relative "../lib/devcontainer_check"
+
+options = {}
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/check-devcontainer [--compose-json PATH]"
+  parser.on("--compose-json PATH", "Rendered compose config to check")
+end.parse!(into: options)
 
 check = DevcontainerCheck.new
 failures = check.devcontainer_failures(File.read(File.expand_path("../.devcontainer/devcontainer.json", __dir__)))
+failures += check.compose_failures(File.read(options[:"compose-json"])) if options[:"compose-json"]
 
 if failures.empty?
   puts "OK: dev container config"
