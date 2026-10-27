@@ -1,0 +1,28 @@
+// Passing devcontainer.json for DevcontainerCheckTest, trimmed from .devcontainer/devcontainer.json.
+{
+  "name": "citewise",
+  "dockerComposeFile": "compose.yaml",
+  "service": "rails-app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  /* Keep the Dockerfile's ENTRYPOINT,
+     which starts the firewall and runs the security checks. */
+  "overrideCommand": false,
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  },
+
+  // Do not forward the database port
+  "forwardPorts": [3000],
+
+  "remoteEnv": {
+    "SSH_AUTH_SOCK": ""
+  },
+
+  "postAttachCommand": "curl -s --max-time 3 https://example.com >/dev/null 2>&1 && echo 'FIREWALL NOT ACTIVE' || true"
+}
