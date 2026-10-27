@@ -61,7 +61,7 @@ For multi-step tasks, state a brief plan:
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 # Project
-Rails 8.1 app (Ruby 4.0.7) on Postgres 17 + pgvector. Hotwire, Tailwind, importmap, Solid Cache/Queue/Cable, Minitest.
+Rails 8.1 app (Ruby 4.0.9) on Postgres 17 + pgvector. Hotwire, Tailwind, importmap, Solid Cache/Queue/Cable, Minitest.
 
 ## Development environment
 

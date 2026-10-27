@@ -6,7 +6,7 @@ A Rails 8.1 application backed by PostgreSQL 17 with pgvector for vector search 
 
 | Layer            | Technology                                                        |
 | ---------------- | ----------------------------------------------------------------- |
-| Language         | Ruby 4.0.7                                                        |
+| Language         | Ruby 4.0.9                                                        |
 | Framework        | Rails 8.1.4                                                       |
 | Database         | PostgreSQL 17 with pgvector (`pgvector/pgvector:pg17` image)      |
 | Vector search    | [neighbor](https://github.com/ankane/neighbor) gem                |
