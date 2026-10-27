@@ -61,7 +61,8 @@ RUN case "$TARGETARCH" in \
  && tar -xJf "/tmp/$file" -C /usr/local --strip-components=1 --no-same-owner \
  && rm "/tmp/$file" \
  && npm install -g "playwright@${PLAYWRIGHT_VERSION}" \
- && playwright install --with-deps chromium webkit \
+ && playwright install --with-deps --only-shell chromium \
+ && playwright install --with-deps  webkit \
  && chmod -R a+rX,go-w "$PLAYWRIGHT_BROWSERS_PATH" \
  && rm -rf /var/lib/apt/lists/* /root/.npm
 
