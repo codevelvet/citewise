@@ -35,17 +35,24 @@ module QuestionsHelper
   end
 
   # One answer paragraph: escaped text, each cited span wrapped with the citations that
-  # support it, and a marker linking to its source card. Built without whitespace between
-  # parts, since paragraphs keep their line breaks.
+  # support it, and a marker linking to its source card. A marker names the citations of
+  # the span it follows, so the citations controller can mark the passages cited there.
+  # Its ::before pads the 24px pill to a 44px touch target without changing line height.
+  # Built without whitespace between parts, since paragraphs keep their line breaks.
   def cited_paragraph(parts)
     safe_join(parts.map do |part|
       case part
       when Question::CitedAnswer::Marker
-        link_to part.number, "#source-#{part.number}", aria: { label: "Source #{part.number}" }, data: { source_number: part.number },
-          class: "mx-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-marker-line bg-marker px-1.5 " \
-                 "align-[3px] font-sans text-xs leading-none font-semibold text-marker-ink no-underline hover:border-link"
+        link_to part.number, "#source-#{part.number}",
+          aria: { label: "Source #{part.number}", controls: "source-#{part.number}" },
+          data: { source_number: part.number, citation_ids: part.citation_ids.join(" "), citations_target: "marker", action: "citations#selectMarker" },
+          class: "relative mx-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-marker-line bg-marker px-1.5 " \
+                 "align-[3px] font-sans text-xs leading-none font-semibold text-marker-ink no-underline hover:border-link " \
+                 "before:absolute before:-inset-x-0.5 before:-inset-y-2.5 " \
+                 "data-selected:border-link data-selected:bg-link data-selected:text-white"
       when ->(text) { text.citation_ids.any? }
-        tag.span part.text, data: { citation_ids: part.citation_ids.join(" "), source_numbers: part.numbers.join(" ") }
+        tag.span part.text, data: { citation_ids: part.citation_ids.join(" "), source_numbers: part.numbers.join(" ") },
+          class: "rounded-[3px] box-decoration-clone data-highlighted:bg-highlight"
       else
         part.text
       end

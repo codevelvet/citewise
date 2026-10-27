@@ -2,7 +2,7 @@ class Question
   # Places citation markers in an answer, and gathers one source per cited chunk.
   #
   #   cited = Question::CitedAnswer.new(question.answer, question.citations)
-  #   cited.paragraphs # => [ [ Text("Full-time employees accrue 20 days.", citation_ids: [0], numbers: [1]), Marker(1) ], ... ]
+  #   cited.paragraphs # => [ [ Text("Full-time employees accrue 20 days.", citation_ids: [0], numbers: [1]), Marker(1, citation_ids: [0]) ], ... ]
   #   cited.sources    # => [ Source(number: 1, document_title: "Employee Handbook", source_title: "...", passages: [ Passage(...) ]) ]
   #
   # Each cited chunk gets a number by first use, so the numbers match places in the
@@ -15,7 +15,8 @@ class Question
   class CitedAnswer
     # citation_ids is empty for uncited text.
     Text = Data.define(:text, :citation_ids, :numbers)
-    Marker = Data.define(:number)
+    # citation_ids are the citations from this source behind the span the marker follows.
+    Marker = Data.define(:number, :citation_ids)
     # text is the cited Markdown, for PassageRenderer.
     Passage = Data.define(:citation_ids, :text)
     Source = Data.define(:number, :document_title, :source_title, :passages)
@@ -69,7 +70,7 @@ class Question
         markers = Hash.new { |hash, key| hash[key] = [] }
         @spans.each do |span|
           range = ranges.find { it.cover?(span.stop) } || ranges.reverse.find { it.end <= span.stop } || ranges.first
-          markers[span.stop.clamp(range.begin, range.end)] << @numbers.fetch(span.chunk_id)
+          markers[span.stop.clamp(range.begin, range.end)] << [ @numbers.fetch(span.chunk_id), span.id ]
         end
 
         ranges.map { |range| parts_of(range, markers) }
@@ -104,8 +105,9 @@ class Question
         parts
       end
 
-      def marker_parts(numbers)
-        numbers.uniq.sort.map { Marker.new(number: it) }
+      # entries are [ number, citation id ] pairs for the spans that stop at one point.
+      def marker_parts(entries)
+        entries.group_by(&:first).sort.map { |number, cited| Marker.new(number: number, citation_ids: cited.map(&:last).sort) }
       end
   end
 end
