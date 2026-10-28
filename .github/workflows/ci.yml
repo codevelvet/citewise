@@ -211,7 +211,6 @@ jobs:
       DB_HOST: localhost
       DB_USER: postgres
       DB_PASSWORD: postgres
-      PLAYWRIGHT_VERSION: 1.64.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -221,13 +220,13 @@ jobs:
           bundler-cache: true
       - name: Install Playwright and browsers
         run: |
-          npm install --prefix "$RUNNER_TEMP/playwright" "playwright@${PLAYWRIGHT_VERSION}"
-          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps --only-shell chromium webkit
+          npm ci --ignore-scripts --prefix test/playwright
+          ${{ github.workspace }}test/playwright/node_modules/.bin/playwright install --with-deps --only-shell chromium webkit
       - name: Prepare database
         run: bin/rails db:prepare
       - name: Run system tests
         env:
-          PLAYWRIGHT_CLI: ${{ runner.temp }}/playwright/node_modules/.bin/playwright
+          PLAYWRIGHT_CLI: ${{ github.workspace }}/test/playwright/node_modules/.bin/playwright
         run: bin/rails test:system
       - name: Upload failure screenshots
         if: failure()
