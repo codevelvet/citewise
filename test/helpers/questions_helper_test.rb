@@ -8,8 +8,8 @@ class QuestionsHelperTest < ActionView::TestCase
     render_paragraph [ Text.new(text: "Leave carries over.", citation_ids: [ 0, 2 ], numbers: [ 1 ]), Marker.new(number: 1, citation_ids: [ 0, 2 ]) ]
 
     assert_select "a[href='#source-1'][aria-label='Source 1'][aria-controls='source-1']", "1" do |marker|
-      assert_equal [ "1", "0 2", "marker", "citations#selectMarker" ],
-                   marker.first.attributes.values_at("data-source-number", "data-citation-ids", "data-citations-target", "data-action").map(&:value)
+      assert_equal [ "false", "1", "0 2", "marker", "citations#selectMarker" ],
+                   marker.first.attributes.values_at("data-turbo", "data-source-number", "data-citation-ids", "data-citations-target", "data-action").map(&:value)
       assert_no_match(/aria-pressed/, marker.to_html)
     end
   end
