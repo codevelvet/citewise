@@ -221,7 +221,7 @@ jobs:
       - name: Install Playwright and browsers
         run: |
           npm ci --ignore-scripts --prefix test/playwright
-          ${{ github.workspace }}test/playwright/node_modules/.bin/playwright install --with-deps --only-shell chromium webkit
+          ${{ github.workspace }}/test/playwright/node_modules/.bin/playwright install --with-deps --only-shell chromium webkit
       - name: Prepare database
         run: bin/rails db:prepare
       - name: Run system tests
