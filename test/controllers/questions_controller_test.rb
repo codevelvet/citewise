@@ -125,24 +125,53 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "p", /Answered in 1.5 seconds · 1 source/
     assert_select "article[aria-label=Answer] span[data-citation-ids='0'][data-source-numbers='1']", "Full-time employees accrue 20 days of paid leave per year."
-    assert_select "article[aria-label=Answer] a[href='#source-1'][aria-label='Source 1']", "1"
+    assert_select "article[aria-label=Answer] a[href='#source-1'][aria-label='Source 1'][aria-controls='source-1'][data-citation-ids='0']", "1"
     assert_select "article[aria-label=Answer] p", /Ask HR about the rest\./
     assert_select "p", /Sentences without a number connect the cited points/
     assert_select "section#source-1" do
-      assert_select "h3", /Employee Handbook/
-      assert_select "p", "Employee Handbook > Benefits > Paid leave"
-      assert_select "blockquote[data-citation-ids='0'] p", chunks(:leave).content
+      assert_select "h3 #source-1-title", /Employee Handbook/
+      assert_select "h3 #source-1-path", "Employee Handbook > Benefits > Paid leave"
+      assert_select "#source-1-passages blockquote[data-citation-ids='0'] .passage p", chunks(:leave).content
     end
     assert_select "[role=note]", count: 0
   end
 
-  test "show escapes the answer and passages" do
+  test "show wires the citations controller, with a closed source sheet, and keeps cards complete without JavaScript" do
+    question = answered_question
+
+    get question_path(question)
+
+    assert_select "[data-controller=citations]" do
+      assert_select "section#source-1[data-citations-target=card]"
+      assert_select "h3 [data-citations-target=header]", count: 1
+      assert_select "button[data-citations-target=cardButton]", count: 0
+      assert_select "#source-1-passages:not([hidden])"
+      assert_select "dialog#source-sheet[aria-labelledby=source-sheet-title]:not([open])" do
+        assert_select "h2#source-sheet-title[tabindex='-1']"
+        assert_select "button[aria-label='Close source']"
+        assert_select "[aria-live=polite][data-citations-target=pageStatus]"
+      end
+    end
+  end
+
+  test "show has no citations controller or sheet when the answer cites nothing" do
+    question = answered_question
+    question.update!(citations: [])
+
+    get question_path(question)
+
+    assert_select "[data-controller=citations]", count: 0
+    assert_select "dialog", count: 0
+  end
+
+  test "show escapes the answer and drops raw HTML from passages" do
     question = answered_question(answer: "<script>alert(1)</script> Ask HR.", cited_text: "<img src=x onerror=alert(1)>")
 
     get question_path(question)
 
     assert_not_includes response.body, "<script>alert(1)</script>"
     assert_not_includes response.body, "<img src=x"
+    assert_not_includes response.body, "onerror"
     assert_includes response.body, "&lt;script&gt;alert(1)&lt;/script&gt;"
   end
 

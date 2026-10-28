@@ -13,7 +13,7 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     answer = "You get 20 days. Ask HR for more."
     cited = Question::CitedAnswer.new(answer, [ citation(1, answer, "You get 20 days. ") ])
 
-    assert_equal [ [ Text.new(text: "You get 20 days.", citation_ids: [ 0 ], numbers: [ 1 ]), Marker.new(number: 1),
+    assert_equal [ [ Text.new(text: "You get 20 days.", citation_ids: [ 0 ], numbers: [ 1 ]), Marker.new(number: 1, citation_ids: [ 0 ]),
                      Text.new(text: " Ask HR for more.", citation_ids: [], numbers: []) ] ], cited.paragraphs
   end
 
@@ -24,7 +24,7 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
 
     cited = Question::CitedAnswer.new(answer, citations)
 
-    assert_equal [ [ Text.new(text: answer, citation_ids: [ 0, 1, 2 ], numbers: [ 1, 2 ]), Marker.new(number: 1), Marker.new(number: 2) ] ], cited.paragraphs
+    assert_equal [ [ Text.new(text: answer, citation_ids: [ 0, 1, 2 ], numbers: [ 1, 2 ]), Marker.new(number: 1, citation_ids: [ 0, 2 ]), Marker.new(number: 2, citation_ids: [ 1 ]) ] ], cited.paragraphs
     assert_equal [ 1, 2 ], cited.sources.map(&:number)
   end
 
@@ -43,11 +43,11 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
 
     cited = Question::CitedAnswer.new(answer, citations)
 
-    assert_equal [ 1, 1 ], cited.paragraphs.first.grep(Marker).map(&:number)
+    assert_equal [ [ 1, [ 0 ] ], [ 1, [ 1 ] ] ], cited.paragraphs.first.grep(Marker).map { [ it.number, it.citation_ids ] }
     source = cited.sources.sole
     assert_equal [ 1, "Leave Policy", CARRY ], [ source.number, source.document_title, source.source_title ]
-    assert_equal [ [ [ 0 ], [ "Paid leave accrues monthly." ] ], [ [ 1 ], [ "### Carry-over", "Up to 5 days carry over." ] ] ],
-                 source.passages.map { [ it.citation_ids, it.paragraphs ] }
+    assert_equal [ [ [ 0 ], "Paid leave accrues monthly." ], [ [ 1 ], "### Carry-over\n\nUp to 5 days carry over." ] ],
+                 source.passages.map { [ it.citation_ids, it.text ] }
   end
 
   test "the same passage cited twice is listed once, naming both citations" do
@@ -55,6 +55,16 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     cited = Question::CitedAnswer.new(answer, [ citation(1, answer, "One. "), citation(1, answer, "Two.") ])
 
     assert_equal [ [ 0, 1 ] ], cited.sources.sole.passages.map(&:citation_ids)
+  end
+
+  test "two citations from one chunk that end together share one marker naming both" do
+    answer = "Leave accrues monthly and carries over."
+    citations = [ citation(2, answer, answer, cited_text: "Paid leave accrues monthly."), citation(1, answer, "carries over."),
+                  citation(2, answer, "and carries over.", cited_text: "Up to 5 days carry over.") ]
+
+    markers = Question::CitedAnswer.new(answer, citations).paragraphs.sole.grep(Marker)
+
+    assert_equal [ Marker.new(number: 1, citation_ids: [ 0, 2 ]), Marker.new(number: 2, citation_ids: [ 1 ]) ], markers
   end
 
   test "an answer without citations is plain paragraphs with no sources" do
@@ -84,7 +94,7 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     assert_equal [
       [ Text.new(text: "Intro line.", citation_ids: [], numbers: []) ],
       [ Text.new(text: "Cited start.", citation_ids: [ 0 ], numbers: [ 1 ]) ],
-      [ Text.new(text: "Cited end.", citation_ids: [ 0 ], numbers: [ 1 ]), Marker.new(number: 1) ],
+      [ Text.new(text: "Cited end.", citation_ids: [ 0 ], numbers: [ 1 ]), Marker.new(number: 1, citation_ids: [ 0 ]) ],
       [ Text.new(text: "Uncited.", citation_ids: [], numbers: []) ]
     ], cited.paragraphs
   end
@@ -101,8 +111,8 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
 
     assert_equal [
       Text.new(text: "Alpha ", citation_ids: [ 0 ], numbers: [ 1 ]),
-      Text.new(text: "beta", citation_ids: [ 0, 1 ], numbers: [ 1, 2 ]), Marker.new(number: 1),
-      Text.new(text: " gamma.", citation_ids: [ 1 ], numbers: [ 2 ]), Marker.new(number: 2)
+      Text.new(text: "beta", citation_ids: [ 0, 1 ], numbers: [ 1, 2 ]), Marker.new(number: 1, citation_ids: [ 0 ]),
+      Text.new(text: " gamma.", citation_ids: [ 1 ], numbers: [ 2 ]), Marker.new(number: 2, citation_ids: [ 1 ])
     ], Question::CitedAnswer.new(answer, citations).paragraphs.sole
   end
 
@@ -118,7 +128,7 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     cited = Question::CitedAnswer.new(answer, [ citation(1, answer, answer, cited_text: "<b>bold</b>") ])
 
     assert_equal answer, cited.paragraphs.sole.first.text
-    assert_equal [ "<b>bold</b>" ], cited.sources.sole.passages.sole.paragraphs
+    assert_equal "<b>bold</b>", cited.sources.sole.passages.sole.text
   end
 
   test "Question#cited_answer uses the stored answer and citations" do
@@ -137,6 +147,6 @@ class Question::CitedAnswerTest < ActiveSupport::TestCase
     end
 
     def chunk_of(source)
-      { "Passage of chunk 3." => 3, "Passage of chunk 7." => 7 }.fetch(source.passages.first.paragraphs.first)
+      { "Passage of chunk 3." => 3, "Passage of chunk 7." => 7 }.fetch(source.passages.first.text)
     end
 end
