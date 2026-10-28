@@ -44,10 +44,13 @@ class Question::PassageRendererTest < ActiveSupport::TestCase
   end
 
   test "raw HTML is dropped, not escaped into view" do
-    rendered = Question::PassageRenderer.render("Text <span onclick=\"x()\">inline</span> here.\n\n<div>block</div>\n\n<script>alert(1)</script>")
+    html = render("Text <span onclick=\"x()\">inline</span> here.\n\n<div>block</div>\n\n<script>alert(1)</script>")
 
-    assert_no_match(/<span|<div>|<script|onclick|&lt;|alert|raw HTML omitted/, rendered)
-    assert_equal "Text inline here.", Nokogiri::HTML5.fragment(rendered).text.strip
+    assert_empty html.css("span, div, script")
+    assert_empty html.xpath(".//@*").select { it.name.start_with?("on") }
+    assert_not_includes html.text, "alert"
+    assert_not_includes html.text, "raw HTML omitted"
+    assert_equal "Text inline here.", html.text.strip
   end
 
   test "images become their alt text" do
