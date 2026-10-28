@@ -1,8 +1,8 @@
 require "test_helper"
 
 # Browser tests through Playwright. Classes run in desktop Chromium unless they call
-# driven_by_phone or driven_by_desktop_without_javascript. Rails saves a screenshot to
-# tmp/screenshots when a test fails.
+# driven_by_desktop, driven_by_phone, or driven_by_desktop_without_javascript. Rails saves
+# a screenshot to tmp/screenshots when a test fails.
 #
 # Broadcasts reach the browser through the test cable adapter: it records them for
 # assert_broadcasts and also delivers them in-process, like the async adapter, to the test
@@ -12,26 +12,38 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   include TestData
   include ActiveJob::TestHelper
   include FakeAnswerer::TestHelper
+  include CitedAnswerScenario
 
   # The CLI and its browsers come with the dev container (CI sets PLAYWRIGHT_CLI). Without
   # a path the driver runs npx, which downloads.
   PLAYWRIGHT = { playwright_cli_executable_path: ENV.fetch("PLAYWRIGHT_CLI", "playwright"), headless: true }.freeze
+  DESKTOP = [ 1280, 900 ].freeze
+  # Names from Playwright's device list.
   PHONE = "iPhone 15"
+  SMALL_PHONE = "iPhone SE"
+  ANDROID_PHONE = "Pixel 7"
 
   # Find controls by their accessible names, like the "Source 1" markers.
   Capybara.enable_aria_label = true
 
-  driven_by :playwright, screen_size: [ 1280, 900 ], options: { name: :desktop, browser_type: :chromium, **PLAYWRIGHT }
-
-  # WebKit with Playwright's iPhone profile: viewport, touch, and user agent.
-  def self.driven_by_phone
-    device = playwright_device(PHONE)
-    driven_by :playwright, screen_size: device[:viewport].values_at(:width, :height),
-              options: { name: :phone, browser_type: :webkit, **device, **PLAYWRIGHT }
+  def self.driven_by_desktop(browser: :chromium)
+    driven_by :playwright, screen_size: DESKTOP, options: { name: :"desktop_#{browser}", browser_type: browser, **PLAYWRIGHT }
   end
 
+  # A Playwright device profile, for viewport, touch, and user agent, in WebKit unless
+  # browser says otherwise. reduced_motion makes the page prefer reduced motion.
+  def self.driven_by_phone(device = PHONE, browser: :webkit, reduced_motion: false)
+    profile = playwright_device(device)
+    profile = profile.merge(reducedMotion: "reduce") if reduced_motion
+    name = [ device.parameterize(separator: "_"), browser, ("reduced_motion" if reduced_motion) ].compact.join("_")
+    driven_by :playwright, screen_size: profile[:viewport].values_at(:width, :height),
+              options: { name: name.to_sym, browser_type: browser, **profile, **PLAYWRIGHT }
+  end
+
+  driven_by_desktop
+
   def self.driven_by_desktop_without_javascript
-    driven_by :playwright, screen_size: [ 1280, 900 ],
+    driven_by :playwright, screen_size: DESKTOP,
               options: { name: :desktop_without_javascript, browser_type: :chromium, javaScriptEnabled: false, **PLAYWRIGHT }
   end
 
@@ -66,8 +78,8 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     end
 
     # Runs AskJob for the questions asked so far, without the network.
-    def answer_questions
-      with_fake_embedder { with_fake_answerer { perform_enqueued_jobs(only: AskJob) } }
+    def answer_questions(answerer = FakeAnswerer.new)
+      with_fake_embedder { with_fake_answerer(answerer) { perform_enqueued_jobs(only: AskJob) } }
     end
 
     # The page's stream subscription is confirmed, so later broadcasts will reach it.
