@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Pins the Playwright CLI for browser tests. Keep its version equal to playwright-ruby-client in Gemfile.lock.",
+  "dependencies": {
+    "playwright": "1.64.0"
+  }
+}

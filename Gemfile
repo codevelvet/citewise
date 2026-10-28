@@ -76,7 +76,10 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
-  gem "selenium-webdriver"
+  # Drives Chromium and WebKit through the Playwright CLI [https://github.com/YusukeIwaki/capybara-playwright-driver]
+  gem "capybara-playwright-driver", "0.5.13"
+  # Must match the playwright CLI's version: see .devcontainer/Dockerfile and the system-test CI job
+  gem "playwright-ruby-client", "1.64.0"
   # Blocks real HTTP in tests [https://github.com/bblimke/webmock]
   gem "webmock"
   # Replays recorded HTTP interactions [https://github.com/vcr/vcr]
