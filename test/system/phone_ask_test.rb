@@ -65,7 +65,7 @@ class PhoneAskTest < ApplicationSystemTestCase
     assert_highlighted
   end
 
-  test "tapping another marker while the sheet is open swaps its content" do
+  test "tapping another marker while the sheet is open swaps its content, and Escape returns to that marker" do
     ask_cited_question
     tap_on marker_after(PART_TIME)
     assert_selector "#source-sheet-title", text: "Part-time Guide"
@@ -78,6 +78,12 @@ class PhoneAskTest < ApplicationSystemTestCase
       assert_cited_here LEAVE
     end
     assert_highlighted LEAVE
+
+    # The dialog alone would return focus to the first marker, which opened it.
+    send_keys :escape
+
+    assert_sheet_closed
+    assert_selector "a[data-citation-ids='0']:focus"
   end
 
   test "the open sheet pads the page by its height" do
