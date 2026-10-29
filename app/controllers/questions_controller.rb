@@ -4,9 +4,9 @@ class QuestionsController < ApplicationController
   # Per-user limits keep one account from filling the ask queue. The daily cap protects the
   # API budget across every account. Rate limits apply to creating questions only.
   rate_limit to: LIMITS[:per_minute], within: 1.minute, name: "minute", only: :create, by: -> { Current.user.id },
-             store: LIMITS[:rate_limit_store] || cache_store, with: -> { too_many_questions(:visitor) }
+             store: LIMITS[:rate_limit_store] || cache_store, with: -> { too_many_questions(:user) }
   rate_limit to: LIMITS[:per_hour], within: 1.hour, name: "hour", only: :create, by: -> { Current.user.id },
-             store: LIMITS[:rate_limit_store] || cache_store, with: -> { too_many_questions(:visitor) }
+             store: LIMITS[:rate_limit_store] || cache_store, with: -> { too_many_questions(:user) }
   before_action :enforce_daily_cap, only: :create
 
   # Questions can be personal, and a shared answer page could pass off a coaxed answer as
