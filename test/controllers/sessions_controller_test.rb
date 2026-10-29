@@ -14,6 +14,8 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[type=email][name=email_address][autocomplete=username]"
     assert_select "input[type=password][name=password][autocomplete=current-password]"
+    assert_select "#ask-top", count: 0
+    assert_select "button", text: "Sign out", count: 0
   end
 
   test "a signed-out visitor goes to sign-in, then back to the page they asked for" do
@@ -45,6 +47,11 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert cookies[:session_id].present?
     follow_redirect!
     assert_response :success
+    # A plain form, so it works without JavaScript.
+    assert_select "header form[action=?][method=post]", session_path do
+      assert_select "input[name=_method][value=delete]", visible: :all
+      assert_select "button[type=submit]", "Sign out"
+    end
   end
 
   test "a failed sign-in shows the same message whether or not the email exists" do
