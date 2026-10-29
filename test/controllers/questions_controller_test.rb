@@ -9,6 +9,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     Rails.configuration.x.ask_page[:rate_limit_store].clear
+    sign_in_as create_user
   end
 
   test "the root shows the empty ask page, without the header ask box" do
@@ -278,10 +279,12 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty response.body
   end
 
-  test "another visitor can't see a question by its link" do
+  test "another signed-in user can't see a question by its link" do
     question = asked
+    other = create_user("other@example.com")
 
     open_session do |visitor|
+      visitor.post session_path, params: { email_address: other.email_address, password: PASSWORD }
       visitor.get question_path(question)
       visitor.assert_response :not_found
       visitor.assert_select "h1", "This question isn't available"

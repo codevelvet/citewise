@@ -38,5 +38,6 @@ module ActiveSupport
     parallelize(workers: :number_of_processors)
 
     # Add more helper methods to be used by all tests here...
+    include UserTestHelper
   end
 end

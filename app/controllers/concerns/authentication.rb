@@ -38,7 +38,10 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
+    # Both reset the Rails session, so question_ids and the rest never carry over from
+    # one signed-in person to the next on a shared browser.
     def start_new_session_for(user)
+      reset_session
       user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
         Current.session = session
         cookies.signed.permanent[:session_id] = { value: session.id, httponly: true, same_site: :lax }
@@ -48,5 +51,6 @@ module Authentication
     def terminate_session
       Current.session.destroy
       cookies.delete(:session_id)
+      reset_session
     end
 end
