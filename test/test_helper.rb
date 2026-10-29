@@ -8,6 +8,7 @@ unless ENV["VCR_RECORD"]
 end
 require_relative "../config/environment"
 require "rails/test_help"
+require_relative "test_helpers/session_test_helper"
 require "webmock/minitest"
 require "vcr"
 
