@@ -113,6 +113,8 @@ namespace :citewise do
       # A reset may follow a leaked password, so no browser stays signed in with the old one.
       signed_out = user.sessions.destroy_all.size if existing
     end
+    # Open sockets outlive their session row. Once closed, they can't reconnect without one.
+    ActionCable.server.remote_connections.where(current_user: user).disconnect if existing
 
     if existing
       puts "Set a new password for #{user.email_address} and signed out #{signed_out} #{"session".pluralize(signed_out)}"

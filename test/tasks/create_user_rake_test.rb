@@ -2,6 +2,8 @@ require "test_helper"
 require "rake"
 
 class CreateUserRakeTest < ActiveSupport::TestCase
+  include StubHelper
+
   NEW_PASSWORD = "a brand new passphrase"
 
   # Stands in for a terminal on $stdin. getpass mirrors IO#getpass: it prompts on stderr
@@ -21,8 +23,28 @@ class CreateUserRakeTest < ActiveSupport::TestCase
     end
   end
 
+  # Stands in for ActionCable.server.remote_connections, recording whose connections were disconnected.
+  class FakeRemoteConnections
+    attr_reader :disconnected
+
+    def initialize
+      @disconnected = []
+    end
+
+    def where(identifier)
+      FakeRemoteConnection.new(identifier, @disconnected)
+    end
+
+    FakeRemoteConnection = Struct.new(:identifier, :disconnected) do
+      def disconnect(**) = disconnected << identifier
+    end
+  end
+
   setup do
+    # Keep task descriptions, as rails -T does, in case this file loads the tasks first.
+    Rake::TaskManager.record_task_metadata = true
     Rails.application.load_tasks if Rake::Task.tasks.none? { |task| task.name == "citewise:create_user" }
+    @remote_connections = FakeRemoteConnections.new
   end
 
   test "creates a user whose password is the typed line without its newline" do
@@ -30,12 +52,13 @@ class CreateUserRakeTest < ActiveSupport::TestCase
 
     assert_nil error
     assert_includes output, "Created user owner@example.com"
+    assert_empty @remote_connections.disconnected, "a new user has no connections to close"
     assert_equal User.find_by!(email_address: "owner@example.com"), User.authenticate_by(email_address: "owner@example.com", password: NEW_PASSWORD)
     assert_nil User.authenticate_by(email_address: "owner@example.com", password: "#{NEW_PASSWORD}\n")
     assert_not_includes output, NEW_PASSWORD
   end
 
-  test "an existing email gets the new password, and its sessions are signed out" do
+  test "an existing email gets the new password, and its sessions and open connections are closed" do
     user = create_user
     other = create_user("other@example.com")
     2.times { user.sessions.create! }
@@ -51,6 +74,7 @@ class CreateUserRakeTest < ActiveSupport::TestCase
     assert_equal user, User.authenticate_by(email_address: user.email_address, password: NEW_PASSWORD)
     assert_empty user.sessions.reload
     assert_equal 1, other.sessions.count
+    assert_equal [ { current_user: user } ], @remote_connections.disconnected
     assert_not_includes output, NEW_PASSWORD
   end
 
@@ -63,6 +87,7 @@ class CreateUserRakeTest < ActiveSupport::TestCase
     assert_equal "The passwords don't match", error.message
     assert_equal user, User.authenticate_by(email_address: user.email_address, password: PASSWORD)
     assert_equal 1, user.sessions.count
+    assert_empty @remote_connections.disconnected
     assert_not_includes output, NEW_PASSWORD
   end
 
@@ -95,11 +120,12 @@ class CreateUserRakeTest < ActiveSupport::TestCase
     # Returns stdout and stderr together, and the SystemExit if the task aborted.
     def create_user_task(input, tty: true)
       stdin, $stdin = $stdin, FakeTerminal.new(input, tty: tty)
+      remote_connections = @remote_connections
       task = Rake::Task["citewise:create_user"]
       task.reenable
       error = nil
       output = capture_io do
-        task.invoke
+        stub(ActionCable.server, :remote_connections, -> { remote_connections }) { task.invoke }
       rescue SystemExit => exit
         error = exit
       end
