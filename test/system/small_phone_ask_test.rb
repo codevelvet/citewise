@@ -2,6 +2,7 @@ require "application_system_test_case"
 
 class SmallPhoneAskTest < ApplicationSystemTestCase
   driven_by_phone SMALL_PHONE
+  setup { sign_in }
 
   test "the sheet takes at most half the screen, and the end of the page can scroll above it" do
     ask_cited_question

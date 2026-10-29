@@ -3,6 +3,7 @@ require "application_system_test_case"
 # The phone flow once more in Chromium, for Android.
 class AndroidAskTest < ApplicationSystemTestCase
   driven_by_phone ANDROID_PHONE, browser: :chromium
+  setup { sign_in }
 
   test "tapping a marker opens the sheet, and Escape closes it" do
     ask_cited_question

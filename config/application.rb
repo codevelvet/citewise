@@ -67,13 +67,13 @@ module Citewise
       enabled: !Rails.env.production? || ENV["CITEWISE_ASK_PAGE_ENABLED"] == "true",
       # AskJobs running at once, across every worker process. Changing it takes a restart of bin/jobs.
       max_concurrent_asks: positive_integer.("CITEWISE_MAX_CONCURRENT_ASKS", "1"),
-      # Questions one IP address may ask.
+      # Questions one signed-in user may ask.
       per_minute: 3,
       per_hour: 30,
       # Questions everyone together may ask in 24 hours. It protects the $20 API budget, so it
       # starts low: 20 questions cost about $0.22 a day at worst. Changing it takes a restart.
       per_day: positive_integer.("CITEWISE_MAX_QUESTIONS_PER_DAY", "20"),
-      # Where the per-IP counts live; nil means Rails.cache. config/environments/test.rb sets a real store.
+      # Where the per-user counts live; nil means Rails.cache. config/environments/test.rb sets a real store.
       rate_limit_store: nil
     }
   end

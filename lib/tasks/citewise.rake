@@ -86,6 +86,43 @@ namespace :citewise do
     puts "Time: retrieval #{question.retrieval_ms} ms, answer #{question.answer_ms} ms (question #{question.id}, #{question.model})"
   end
 
+  desc "Create a user, or set a new password and sign out every session if the email exists (prompts; the password isn't echoed)"
+  task create_user: :environment do
+    require "io/console"
+    # Never fall back to reading the password with echo, or from a pipe.
+    abort "citewise:create_user needs an interactive terminal, so it can read the password without echo" unless $stdin.tty?
+
+    print "Email: "
+    email_address = $stdin.gets&.strip
+    abort "No email address given" if email_address.blank?
+    # getpass turns echo off and drops the newline. Both return nil at end of input.
+    password = $stdin.getpass("Password: ")
+    confirmation = $stdin.getpass("Confirm password: ")
+    abort "No password given" if password.blank? || confirmation.nil?
+    abort "The passwords don't match" unless password == confirmation
+
+    user = User.find_or_initialize_by(email_address: email_address)
+    existing = user.persisted?
+    user.assign_attributes(password: password, password_confirmation: confirmation)
+    # Validation messages describe the password's length, never its value.
+    abort user.errors.full_messages.to_sentence unless user.valid?
+
+    signed_out = 0
+    User.transaction do
+      user.save!
+      # A reset may follow a leaked password, so no browser stays signed in with the old one.
+      signed_out = user.sessions.destroy_all.size if existing
+    end
+    # Open sockets outlive their session row. Once closed, they can't reconnect without one.
+    ActionCable.server.remote_connections.where(current_user: user).disconnect if existing
+
+    if existing
+      puts "Set a new password for #{user.email_address} and signed out #{signed_out} #{"session".pluralize(signed_out)}"
+    else
+      puts "Created user #{user.email_address}"
+    end
+  end
+
   desc "Mark questions pending for over an hour failed (also runs every 15 minutes in production via config/recurring.yml)"
   task fail_abandoned_questions: :environment do
     count = Question.fail_abandoned

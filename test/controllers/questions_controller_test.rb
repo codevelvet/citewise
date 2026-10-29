@@ -9,6 +9,8 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     Rails.configuration.x.ask_page[:rate_limit_store].clear
+    @user = create_user
+    sign_in_as @user
   end
 
   test "the root shows the empty ask page, without the header ask box" do
@@ -54,36 +56,41 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_no_enqueued_jobs
   end
 
-  test "create allows #{QuestionsController::LIMITS[:per_minute]} questions a minute per IP, then returns 429" do
-    3.times { ask(ip: "203.0.113.1") }
+  test "create allows #{QuestionsController::LIMITS[:per_minute]} questions a minute per user, then returns 429" do
+    3.times { ask }
     assert_no_difference -> { Question.count } do
-      ask(ip: "203.0.113.1")
+      ask
     end
     assert_response :too_many_requests
     assert_select "h1", /asking faster/
 
     ask(ip: "203.0.113.2")
-    assert_response :redirect, "another IP has its own limit"
+    assert_response :too_many_requests, "the limit follows the user, not the IP"
 
+    sign_in_as create_user("other@example.com")
+    ask
+    assert_response :redirect, "another user has their own limit"
+
+    sign_in_as @user
     travel 61.seconds do
-      ask(ip: "203.0.113.1")
+      ask
       assert_response :redirect
     end
   end
 
-  test "create allows #{QuestionsController::LIMITS[:per_hour]} questions an hour per IP" do
+  test "create allows #{QuestionsController::LIMITS[:per_hour]} questions an hour per user" do
     # The default daily cap is below the hourly limit, so raise it to reach the hourly one.
     per_day = Rails.configuration.x.ask_page[:per_day]
     Rails.configuration.x.ask_page[:per_day] = 100
     10.times do |minute|
       travel_to (minute * 2).minutes.from_now do
-        3.times { ask(ip: "203.0.113.1") }
+        3.times { ask }
       end
     end
     assert_equal 30, Question.count
 
     travel_to 25.minutes.from_now do
-      ask(ip: "203.0.113.1")
+      ask
       assert_response :too_many_requests
       assert_select "h1", /asking faster/
     end
@@ -95,11 +102,12 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     Question.insert_all(Array.new(QuestionsController::LIMITS[:per_day] - 1) { { text: "Earlier?", created_at: 1.hour.ago, updated_at: 1.hour.ago } })
     Question.create!(text: "Yesterday?", created_at: 25.hours.ago)
 
-    ask(ip: "203.0.113.1")
+    ask
     assert_response :redirect
 
+    sign_in_as create_user("other@example.com")
     assert_no_difference -> { Question.count } do
-      ask(ip: "203.0.113.2")
+      ask
     end
     assert_response :too_many_requests
     assert_select "h1", /all the questions it can for today/
@@ -278,10 +286,12 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty response.body
   end
 
-  test "another visitor can't see a question by its link" do
+  test "another signed-in user can't see a question by its link" do
     question = asked
+    other = create_user("other@example.com")
 
     open_session do |visitor|
+      visitor.post session_path, params: { email_address: other.email_address, password: PASSWORD }
       visitor.get question_path(question)
       visitor.assert_response :not_found
       visitor.assert_select "h1", "This question isn't available"
@@ -336,7 +346,7 @@ class QuestionsControllerTest < ActionDispatch::IntegrationTest
       assert_select "main a[href=?]", new_question_path, "Ask a question"
     end
 
-    def ask(ip:)
+    def ask(ip: "127.0.0.1")
       post questions_path, params: { question: { text: "How much leave?" } }, env: { "REMOTE_ADDR" => ip }
     end
 

@@ -3,6 +3,7 @@ require "application_system_test_case"
 # The rail flow once more in WebKit, for Safari on Macs.
 class WebkitDesktopAskTest < ApplicationSystemTestCase
   driven_by_desktop browser: :webkit
+  setup { sign_in }
 
   test "a marker opens its card in the rail and highlights its source's spans" do
     ask_cited_question

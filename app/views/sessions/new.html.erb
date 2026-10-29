@@ -1,0 +1,27 @@
+<% content_for :title, "Citewise: sign in" %>
+<% content_for :hide_header_ask, true %>
+
+<main class="mx-auto max-w-[720px] px-6 pt-16 pb-16 sm:pt-24">
+  <h1 class="mb-3 font-serif text-[32px] leading-tight font-semibold tracking-[-0.01em] sm:text-[40px]">Sign in</h1>
+  <p class="mb-8 max-w-[560px] text-[17px] text-muted">Citewise is open to invited accounts only.</p>
+
+  <%= form_with url: session_path, class: "flex max-w-[440px] flex-col gap-4 rounded-xl border border-field bg-white p-4 sm:p-6" do |form| %>
+    <% if alert = flash[:alert] %>
+      <p role="alert" class="text-sm text-danger"><%= alert %></p>
+    <% end %>
+
+    <div class="flex flex-col gap-1.5">
+      <%= form.label :email_address, "Email", class: "text-[13px] font-semibold text-muted" %>
+      <%= form.email_field :email_address, required: true, autofocus: true, autocomplete: "username", value: params[:email_address],
+            class: "h-11 min-w-0 rounded-lg border border-field bg-white px-3.5 text-ink" %>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <%= form.label :password, "Password", class: "text-[13px] font-semibold text-muted" %>
+      <%= form.password_field :password, required: true, autocomplete: "current-password", maxlength: 72,
+            class: "h-11 min-w-0 rounded-lg border border-field bg-white px-3.5 text-ink" %>
+    </div>
+
+    <%= form.submit "Sign in", name: nil, class: "h-11 cursor-pointer rounded-lg bg-ink px-6 font-semibold text-white sm:self-start" %>
+  <% end %>
+</main>

@@ -70,6 +70,15 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   end
 
   private
+    # Signs in through the form, as a visitor would. Test classes that ask call it in setup.
+    def sign_in(user = create_user)
+      visit new_session_path
+      fill_in "Email", with: user.email_address
+      fill_in "Password", with: PASSWORD
+      click_on "Sign in"
+      assert_button "Sign out"
+    end
+
     def ask(text)
       visit root_path
       fill_in "Your question", with: text

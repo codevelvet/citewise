@@ -8,6 +8,7 @@ unless ENV["VCR_RECORD"]
 end
 require_relative "../config/environment"
 require "rails/test_help"
+require_relative "test_helpers/session_test_helper"
 require "webmock/minitest"
 require "vcr"
 
@@ -37,5 +38,6 @@ module ActiveSupport
     parallelize(workers: :number_of_processors)
 
     # Add more helper methods to be used by all tests here...
+    include UserTestHelper
   end
 end
