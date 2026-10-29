@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class AskTest < ApplicationSystemTestCase
+  setup { sign_in }
+
   test "asking shows the pending state, then the answer arrives by broadcast without a reload" do
     ask "How much paid leave do I get?"
 

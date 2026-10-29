@@ -2,6 +2,7 @@ require "application_system_test_case"
 
 class AskWithoutJavascriptTest < ApplicationSystemTestCase
   driven_by_desktop_without_javascript
+  setup { sign_in }
 
   test "without JavaScript, cards show every passage and markers jump to their source cards" do
     ask "How much paid leave do I get?"
@@ -19,5 +20,15 @@ class AskWithoutJavascriptTest < ApplicationSystemTestCase
     outlines = %w[source-1 source-2].map { find("##{it}").style("border-color")["border-color"] }
     assert_not_equal(*outlines, "the targeted card has no outline")
     assert_sheet_closed
+  end
+
+  test "without JavaScript, signing in and out work as plain forms" do
+    assert_selector "h1", text: "Ask the handbook"
+
+    click_on "Sign out"
+
+    assert_selector "h1", text: "Sign in"
+    visit root_path
+    assert_selector "h1", text: "Sign in"
   end
 end

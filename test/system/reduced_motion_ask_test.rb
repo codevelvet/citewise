@@ -2,6 +2,7 @@ require "application_system_test_case"
 
 class ReducedMotionAskTest < ApplicationSystemTestCase
   driven_by_phone reduced_motion: true
+  setup { sign_in }
 
   test "the sheet opens without animation" do
     ask_cited_question
