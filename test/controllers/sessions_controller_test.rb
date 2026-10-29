@@ -27,6 +27,26 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_question_path(text: "How much leave?")
   end
 
+  test "a signed-out request for an answer's stream doesn't become the page to return to" do
+    question = Question.create!(text: "How much leave?")
+
+    get answer_question_path(question, format: :turbo_stream)
+    assert_redirected_to new_session_path
+
+    sign_in
+
+    assert_redirected_to root_url
+  end
+
+  test "a signed-out form submission doesn't become the page to return to" do
+    post questions_path, params: { question: { text: "How much leave?" } }
+    assert_redirected_to new_session_path
+
+    sign_in
+
+    assert_redirected_to root_url
+  end
+
   test "signing in without a page to return to goes to the ask page" do
     sign_in
 

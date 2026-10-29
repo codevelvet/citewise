@@ -30,7 +30,9 @@ module Authentication
     end
 
     def request_authentication
-      session[:return_to_after_authenticating] = request.url
+      # Only page navigations: returning to a stream or form endpoint would show a blank page or an error.
+      # html? alone also matches Turbo Streams, whose type is text/vnd.turbo-stream.html.
+      session[:return_to_after_authenticating] = request.url if request.get? && request.format.html? && !request.format.turbo_stream?
       redirect_to new_session_path
     end
 
