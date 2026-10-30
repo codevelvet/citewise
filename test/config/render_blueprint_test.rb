@@ -11,9 +11,8 @@ class RenderBlueprintTest < ActiveSupport::TestCase
     @services = @blueprint.fetch("services").index_by { it.fetch("name") }
   end
 
-  test "a web service and a worker" do
-    assert_equal %w[web worker], @services.values.map { it["type"] }.sort
-    assert_equal "./bin/jobs", worker["dockerCommand"]
+  test "a web service" do
+    assert_equal %w[web], @services.values.map { it["type"] }.sort
   end
 
   test "neither service deploys automatically" do
@@ -31,7 +30,6 @@ class RenderBlueprintTest < ActiveSupport::TestCase
   test "the web service is health-checked on /up and migrates once per deploy" do
     assert_equal "/up", web["healthCheckPath"]
     assert_equal "./bin/rails db:prepare", web["preDeployCommand"]
-    assert_nil worker["preDeployCommand"]
   end
 
   test "every secret is entered in the dashboard, on both services" do
