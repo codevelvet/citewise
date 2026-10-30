@@ -101,7 +101,12 @@ iptables -A OUTPUT -o lo -j ACCEPT
 iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-# 8. Postgres only: its address on the Compose network, on its port.
+# 8a. Rails dev server, reachable through the compose port mapping. Published-port
+# traffic arrives from the Docker gateway, so allow only that source.
+host_gw=$(ip route | awk '/^default/ {print $3}')
+iptables -A INPUT -p tcp -s "$host_gw" --dport 3000 -j ACCEPT
+
+# 8b. Postgres only: its address on the Compose network, on its port.
 db_ips=$(getent ahostsv4 "$DB_SERVICE" | awk '{print $1}' | sort -u)
 if [ -z "$db_ips" ]; then
   echo "ERROR: Failed to resolve $DB_SERVICE"

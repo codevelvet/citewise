@@ -9,6 +9,9 @@ Rails.application.configure do
   # Do not eager load code on boot.
   config.eager_load = false
 
+  # Allow web-console for host browser requests arriving via the devcontainer's Docker bridge.
+  config.web_console.allowed_ips = "172.16.0.0/12"
+
   # Show full error reports.
   config.consider_all_requests_local = true
 
