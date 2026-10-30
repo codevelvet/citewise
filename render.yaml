@@ -1,0 +1,84 @@
+# Render Blueprint: a web service and a Solid Queue worker built from the production Dockerfile,
+# and one Postgres instance. See docs/deploying.md. Deploys are manual, from a tag; nothing deploys on push.
+#
+# Secrets use sync: false, so Render asks for their values when the Blueprint is created and they're
+# never committed. Later Blueprint syncs leave them alone: change them in the dashboard instead.
+# Plans and region: confirm current prices at https://render.com/pricing before creating the Blueprint.
+
+previews:
+  generation: "off"
+
+services:
+  - type: web
+    name: citewise-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    autoDeployTrigger: "off"
+    healthCheckPath: /up
+    # Once per deploy, before the new release takes traffic. Creates the cache, queue, and cable databases on first run.
+    preDeployCommand: ./bin/rails db:prepare
+    envVars:
+      # Thruster listens on HTTP_PORT and starts Puma on its own TARGET_PORT (3000). Render routes to PORT.
+      - key: HTTP_PORT
+        value: "10000"
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: citewise-db
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+
+  - type: worker
+    name: citewise-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    autoDeployTrigger: "off"
+    dockerCommand: ./bin/jobs
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: citewise-db
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+
+databases:
+  - name: citewise-db
+    databaseName: citewise_production
+    plan: basic-256mb
+    region: oregon
+    postgresMajorVersion: "17"
+    # No access from outside Render's private network.
+    ipAllowList: []
