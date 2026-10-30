@@ -16,7 +16,7 @@ A Rails 8.1 application backed by PostgreSQL 17 with pgvector for vector search 
 | Web server       | Puma, Thruster                                                    |
 | Testing          | Minitest, Capybara, Selenium                                      |
 | Linting/security | RuboCop (`rubocop-rails-omakase`), Brakeman, bundler-audit        |
-| Deployment       | Kamal                                                             |
+| Deployment       | Render (Blueprint in `render.yaml`), Active Storage on Cloudflare R2 |
 
 ## Prerequisites
 
@@ -193,7 +193,7 @@ bin/ci            # full CI: rubocop, bundler-audit, importmap audit, brakeman, 
 
 ## Deployment
 
-Production deploys use [Kamal](https://kamal-deploy.org). Configuration lives in `config/deploy.yml`.
+Production runs on Render from [`render.yaml`](render.yaml), deployed by hand from a semver tag. See [docs/deploying.md](docs/deploying.md) for the first deploy, routine deploys, rollback, and rotating secrets. The Kamal configuration in `config/deploy.yml` isn't used.
 
 ## License
 
