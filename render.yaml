@@ -14,7 +14,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: oregon
     autoDeployTrigger: "off"
     healthCheckPath: /up
@@ -50,7 +50,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: oregon
     autoDeployTrigger: "off"
     dockerCommand: ./bin/jobs
@@ -77,7 +77,7 @@ services:
 databases:
   - name: citewise-db
     databaseName: citewise_production
-    plan: basic-256mb
+    plan: free
     region: oregon
     postgresMajorVersion: "17"
     # No access from outside Render's private network.
