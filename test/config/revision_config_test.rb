@@ -1,22 +1,27 @@
 require "test_helper"
-require "open3"
 
-# config/application.rb reads RENDER_GIT_COMMIT at boot, so each case loads it in a fresh process.
 class RevisionConfigTest < ActiveSupport::TestCase
-  test "the revision is RENDER_GIT_COMMIT, shortened to seven characters" do
-    assert_equal "0123abc", revision("RENDER_GIT_COMMIT" => "0123abcdef456789")
+  test "production's revision is RENDER_GIT_COMMIT, shortened to seven characters" do
+    assert_equal "0123abc", production_revision("0123abcdef456789")
   end
 
-  test "the revision is nil when RENDER_GIT_COMMIT is unset or empty" do
-    assert_equal "nil", revision("RENDER_GIT_COMMIT" => nil)
-    assert_equal "nil", revision("RENDER_GIT_COMMIT" => "")
+  test "production's revision is nil when RENDER_GIT_COMMIT is unset or empty" do
+    assert_nil production_revision(nil)
+    assert_nil production_revision("")
+  end
+
+  test "development and test set no revision" do
+    assert_instance_of EnvironmentConfig::Recorder, EnvironmentConfig.load("development").x.revision
+    assert_instance_of EnvironmentConfig::Recorder, EnvironmentConfig.load("test").x.revision
   end
 
   private
-    def revision(env)
-      script = %(require "./config/application"; p Rails.configuration.x.revision)
-      output, status = Open3.capture2e({ "RAILS_ENV" => "test" }.merge(env), RbConfig.ruby, "-e", script, chdir: Rails.root.to_s)
-      assert status.success?, output
-      output.lines.last.chomp.delete('"')
+    # production.rb reads RENDER_GIT_COMMIT when it's evaluated.
+    def production_revision(commit)
+      original = ENV["RENDER_GIT_COMMIT"]
+      ENV["RENDER_GIT_COMMIT"] = commit
+      EnvironmentConfig.load("production").x.revision
+    ensure
+      ENV["RENDER_GIT_COMMIT"] = original
     end
 end

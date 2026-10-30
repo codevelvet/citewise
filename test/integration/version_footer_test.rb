@@ -33,4 +33,14 @@ class VersionFooterTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "footer", count: 0
   end
+
+  # Outside production, config.x.revision is never set and reads back as empty options.
+  test "no footer when the revision was never set" do
+    Rails.configuration.x.revision = ActiveSupport::OrderedOptions.new
+    sign_in_as create_user
+    get new_question_path
+
+    assert_response :success
+    assert_select "footer", count: 0
+  end
 end
