@@ -1,4 +1,4 @@
-# Render Blueprint: a web service and built from the production Dockerfile,
+# Render Blueprint: a web service (with SolidQueue in puma) built from the production Dockerfile,
 # and one Postgres instance. See docs/deploying.md. Deploys are manual, from a tag; nothing deploys on push.
 #
 # Secrets use sync: false, so Render asks for their values when the Blueprint is created and they're
@@ -30,6 +30,8 @@ services:
         fromDatabase:
           name: citewise-db
           property: connectionString
+      - key: SOLID_QUEUE_IN_PUMA
+        value: "true"
       - key: RAILS_MASTER_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
