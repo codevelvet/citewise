@@ -109,21 +109,24 @@ test:
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
+# Render provides one Postgres instance and DATABASE_URL for its citewise_production database.
+# Cache, queue, and cable get their own databases on that instance, named by suffixing the URL's
+# database name (a url: overrides database:), so db:prepare creates them and loads their schemas.
+<% database_url = ENV["DATABASE_URL"].to_s %>
+<% suffixed = ->(suffix) { database_url.sub(%r{\A([^?]*/[^/?]+)}) { "#{$1}#{suffix}" } } %>
 production:
   primary: &primary_production
     <<: *default
-    database: citewise_production
-    username: citewise
-    password: <%= ENV["CITEWISE_DATABASE_PASSWORD"] %>
+    url: <%= database_url %>
   cache:
     <<: *primary_production
-    database: citewise_production_cache
+    url: <%= suffixed.("_cache") %>
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    database: citewise_production_queue
+    url: <%= suffixed.("_queue") %>
     migrations_paths: db/queue_migrate
   cable:
     <<: *primary_production
-    database: citewise_production_cable
+    url: <%= suffixed.("_cable") %>
     migrations_paths: db/cable_migrate

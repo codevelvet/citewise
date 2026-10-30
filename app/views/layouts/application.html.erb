@@ -39,5 +39,12 @@
     </header>
 
     <%= yield %>
+
+    <%# Only production sets the revision; elsewhere it reads back as empty options. %>
+    <% if authenticated? && (revision = Rails.configuration.x.revision.presence) %>
+      <footer class="mx-auto max-w-[1120px] px-6 py-6 text-[13px] text-ink-soft">
+        Version <code><%= revision %></code>
+      </footer>
+    <% end %>
   </body>
 </html>
