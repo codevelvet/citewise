@@ -66,6 +66,13 @@ RUN case "$TARGETARCH" in \
  && chmod -R a+rX,go-w "$PLAYWRIGHT_BROWSERS_PATH" \
  && rm -rf /var/lib/apt/lists/* /root/.npm
 
+# Claude Code CLI for terminal use, pinned and root-owned. Auto-update is off:
+# the firewall blocks the update servers, and the install is unwritable anyway.
+ARG CLAUDE_CODE_VERSION=2.1.314
+ENV DISABLE_AUTOUPDATER=1
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && rm -rf /root/.npm
+
 USER vscode
 
 # Build-time checks: vscode may run only the firewall script as root, with no
@@ -81,7 +88,9 @@ RUN ! sudo -n true 2>/dev/null \
  && test "$(stat -c '%U' /opt/playwright-browsers)" = "root" \
  && ! test -w /opt/playwright-browsers \
  && test "$(stat -c '%U' /opt/playwright-cli)" = "root" \
- && ! test -w /opt/playwright-cli
+ && ! test -w /opt/playwright-cli \
+ && test "$(stat -c '%U' /usr/local/lib/node_modules/@anthropic-ai/claude-code)" = "root" \
+ && ! test -w /usr/local/lib/node_modules/@anthropic-ai/claude-code
 
 # Use the absolute path in the ENTRYPOINT
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

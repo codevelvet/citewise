@@ -62,7 +62,7 @@ class DevcontainerCheck
     if (app = services["rails-app"])
       failures << "rails-app cap_add must be exactly NET_ADMIN and NET_RAW" unless Array(app["cap_add"]).sort == %w[NET_ADMIN NET_RAW]
       failures << "rails-app must not be privileged" if app["privileged"]
-      failures << "rails-app must not have ports" if app.key?("ports")
+      failures << "rails-app may only publish port 3000 on 127.0.0.1" unless Array(app["ports"]).all? { |port| loopback_rails_port?(port) }
       failures << "rails-app must not have env_file" if app.key?("env_file")
       Array(app["volumes"]).each do |volume|
         failures << "rails-app must not mount a Docker socket (#{volume["source"]})" if volume["source"].to_s.include?("docker.sock")
@@ -87,6 +87,16 @@ class DevcontainerCheck
   end
 
   private
+    # The Rails dev server on host loopback only. Without host_ip, Docker binds
+    # every interface and the dev server (and web-console) is reachable from the LAN.
+    def loopback_rails_port?(port)
+      port.is_a?(Hash) &&
+        port["host_ip"] == "127.0.0.1" &&
+        port["target"].to_s == "3000" &&
+        port["published"].to_s == "3000" &&
+        port.fetch("protocol", "tcp") == "tcp"
+    end
+
     def read_only_failures(name, service, targets)
       targets.filter_map do |target|
         binds = Array(service["volumes"]).select { |volume| volume["type"] == "bind" && volume["target"] == target }

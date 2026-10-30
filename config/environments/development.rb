@@ -9,6 +9,12 @@ Rails.application.configure do
   # Do not eager load code on boot.
   config.eager_load = false
 
+  # Trust only the Docker gateway, where host browser requests arrive.
+  if File.readable?("/proc/net/route") && File.exist?("/.dockerenv")
+    gateway_hex = File.foreach("/proc/net/route").map(&:split).find { |fields| fields[1] == "00000000" }&.at(2)
+    config.web_console.allowed_ips = [ gateway_hex ].pack("H*").bytes.reverse.join(".") if gateway_hex
+  end
+
   # Show full error reports.
   config.consider_all_requests_local = true
 
