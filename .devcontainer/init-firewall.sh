@@ -103,8 +103,10 @@ iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # 8a. Rails dev server, reachable through the compose port mapping. Published-port
 # traffic arrives from the Docker gateway, so allow only that source.
-host_gw=$(ip route | awk '/^default/ {print $3}')
-iptables -A INPUT -p tcp -s "$host_gw" --dport 3000 -j ACCEPT
+host_gw=$(ip route show default | awk 'NR==1 {print $3}')
+host_if=$(ip route show default | awk 'NR==1 {print $5}')
+[ -n "$host_gw" ] && [ -n "$host_if" ] || { echo "ERROR: no default route for port 3000 rule"; exit 1; }
+iptables -A INPUT -i "$host_if" -p tcp -s "$host_gw" --dport 3000 -j ACCEPT
 
 # 8b. Postgres only: its address on the Compose network, on its port.
 db_ips=$(getent ahostsv4 "$DB_SERVICE" | awk '{print $1}' | sort -u)

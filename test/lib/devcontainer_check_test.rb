@@ -74,9 +74,27 @@ class DevcontainerCheckTest < ActiveSupport::TestCase
       compose_failures { |compose| app(compose)["privileged"] = true }
   end
 
-  test "fails when rails-app has ports" do
-    assert_equal [ "compose: rails-app must not have ports" ],
-      compose_failures { |compose| app(compose)["ports"] = [ { "target" => 3000, "published" => "3000", "protocol" => "tcp" } ] }
+  test "passes when rails-app publishes 3000 on loopback" do
+    assert_empty compose_failures { |compose| app(compose)["ports"] = [ loopback_port ] }
+  end
+
+  {
+    "on all interfaces" => { "host_ip" => nil },
+    "on 0.0.0.0" => { "host_ip" => "0.0.0.0" },
+    "another port" => { "target" => 5432, "published" => "5432" },
+    "on a different host port" => { "published" => "8080" },
+    "a port range" => { "published" => "3000-3010" },
+    "over udp" => { "protocol" => "udp" }
+  }.each do |description, change|
+    test "fails when rails-app publishes #{description}" do
+      assert_equal [ "compose: rails-app may only publish port 3000 on 127.0.0.1" ],
+        compose_failures { |compose| app(compose)["ports"] = [ loopback_port.merge(change).compact ] }
+    end
+  end
+
+  test "fails when rails-app publishes a second port" do
+    assert_equal [ "compose: rails-app may only publish port 3000 on 127.0.0.1" ],
+      compose_failures { |compose| app(compose)["ports"] = [ loopback_port, loopback_port.merge("target" => 9229, "published" => "9229") ] }
   end
 
   test "fails when rails-app has env_file" do
@@ -152,6 +170,10 @@ class DevcontainerCheckTest < ActiveSupport::TestCase
 
     def app(compose)
       compose["services"]["rails-app"]
+    end
+
+    def loopback_port
+      { "mode" => "ingress", "host_ip" => "127.0.0.1", "target" => 3000, "published" => "3000", "protocol" => "tcp" }
     end
 
     def postgres(compose)
