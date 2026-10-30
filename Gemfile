@@ -29,7 +29,7 @@ gem "commonmarker"
 # HTTP client for the Voyage embeddings API [https://lostisland.github.io/faraday]
 gem "faraday"
 # Official Claude API client, for search-result citations [https://github.com/anthropics/anthropic-sdk-ruby]
-gem "anthropic", "1.77.1"
+gem "anthropic", "1.80.0"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
