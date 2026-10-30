@@ -5,7 +5,8 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    # container in the cli
+    # Dev server for the host browser when using the devcontainer CLI (no VS Code
+    # port forwarding). Loopback only; bin/check-devcontainer enforces this.
     ports:
       - "127.0.0.1:3000:3000"
 

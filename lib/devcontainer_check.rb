@@ -96,6 +96,7 @@ class DevcontainerCheck
         port["published"].to_s == "3000" &&
         port.fetch("protocol", "tcp") == "tcp"
     end
+
     def read_only_failures(name, service, targets)
       targets.filter_map do |target|
         binds = Array(service["volumes"]).select { |volume| volume["type"] == "bind" && volume["target"] == target }
