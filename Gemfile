@@ -53,6 +53,7 @@ gem "thruster", require: false
 
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 gem "image_processing", "~> 2.2"
+gem "ruby-vips", "~> 2.3"
 # Active Storage's S3 service, for Cloudflare R2 in production [https://github.com/aws/aws-sdk-ruby]
 gem "aws-sdk-s3", "1.233.2", require: false
 
