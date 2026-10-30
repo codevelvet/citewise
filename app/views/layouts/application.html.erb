@@ -39,5 +39,11 @@
     </header>
 
     <%= yield %>
+
+    <% if authenticated? && Rails.configuration.x.revision %>
+      <footer class="mx-auto max-w-[1120px] px-6 py-6 text-[13px] text-ink-soft">
+        Version <code><%= Rails.configuration.x.revision %></code>
+      </footer>
+    <% end %>
   </body>
 </html>
