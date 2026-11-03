@@ -5,7 +5,7 @@ require "strscan"
 # CI runs bin/check-devcontainer without bundle install.
 class DevcontainerCheck
   FORBIDDEN_KEYS = %w[privileged runArgs mounts initializeCommand].freeze
-  APP_READ_ONLY_TARGETS = %w[.claude .github .devcontainer .git/hooks .git/config CLAUDE.md]
+  APP_READ_ONLY_TARGETS = %w[.claude .github .devcontainer .git/hooks .git/config CLAUDE.md render.yaml]
     .map { |path| "/workspaces/citewise/#{path}" }.freeze
   POSTGRES_READ_ONLY_TARGETS = %w[/docker-entrypoint-initdb.d /etc/postgresql/pg_hba.conf].freeze
 

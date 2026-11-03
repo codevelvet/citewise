@@ -19,6 +19,7 @@ services:
     - ../.git/hooks:/workspaces/citewise/.git/hooks:ro
     - ../.git/config:/workspaces/citewise/.git/config:ro
     - ../CLAUDE.md:/workspaces/citewise/CLAUDE.md:ro
+    - ../render.yaml:/workspaces/citewise/render.yaml:ro
 
     # lets the firewall script (running as root through sudo) manage network rules
     cap_add:
