@@ -146,6 +146,13 @@
           "target": "/workspaces/citewise/CLAUDE.md",
           "read_only": true,
           "bind": {}
+        },
+	{
+          "type": "bind",
+          "source": "/HOST_WORKSPACE/citewise/render.yaml",
+          "target": "/workspaces/citewise/render.yaml",
+          "read_only": true,
+          "bind": {}
         }
       ],
       "build": {
