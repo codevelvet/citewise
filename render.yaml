@@ -18,8 +18,6 @@ services:
     region: oregon
     autoDeployTrigger: "off"
     healthCheckPath: /up
-    # Once per deploy, before the new release takes traffic. Creates the cache, queue, and cable databases on first run.
-    preDeployCommand: ./bin/rails db:prepare
     envVars:
       # Thruster listens on HTTP_PORT and starts Puma on its own TARGET_PORT (3000). Render routes to PORT.
       - key: HTTP_PORT
