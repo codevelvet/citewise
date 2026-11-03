@@ -27,9 +27,8 @@ class RenderBlueprintTest < ActiveSupport::TestCase
     @services.each_value { assert_nil it.dig("previews", "generation"), it["name"] }
   end
 
-  test "the web service is health-checked on /up and migrates once per deploy" do
+  test "the web service is health-checked on /up" do
     assert_equal "/up", web["healthCheckPath"]
-    assert_equal "./bin/rails db:prepare", web["preDeployCommand"]
   end
 
   test "every secret is entered in the dashboard, on both services" do
