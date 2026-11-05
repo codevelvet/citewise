@@ -47,6 +47,11 @@ class RenderBlueprintTest < ActiveSupport::TestCase
     end
   end
 
+  test "the web service trusts Cloudflare's client IP header" do
+    env_var = web.fetch("envVars").find { it["key"] == "CITEWISE_TRUST_CLOUDFLARE_IP" }
+    assert_equal({ "key" => "CITEWISE_TRUST_CLOUDFLARE_IP", "value" => "true" }, env_var)
+  end
+
   test "no committed value looks like a secret" do
     values = @services.values.flat_map { it.fetch("envVars") }.filter_map { it["value"] }
     assert_not_empty values
