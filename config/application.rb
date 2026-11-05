@@ -1,6 +1,7 @@
 require_relative "boot"
 
 require "rails/all"
+require_relative "../lib/middleware/cloudflare_client_ip"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -14,7 +15,7 @@ module Citewise
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
-    config.autoload_lib(ignore: %w[assets tasks])
+    config.autoload_lib(ignore: %w[assets middleware tasks])
 
     # Configuration for the application, engines, and railties goes here.
     #
@@ -23,6 +24,12 @@ module Citewise
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+
+    # Take the client IP from Cloudflare's True-Client-IP / CF-Connecting-IP (see CloudflareClientIp).
+    # Set CITEWISE_TRUST_CLOUDFLARE_IP=true only where Cloudflare is in front (Render). Anywhere else,
+    # anyone could choose their own IP by sending the header.
+    config.x.trust_cloudflare_ip = ENV["CITEWISE_TRUST_CLOUDFLARE_IP"] == "true"
+    config.middleware.insert_after ActionDispatch::RemoteIp, CloudflareClientIp
 
     # Settings for Chunking::MarkdownChunker during ingestion. Changing them makes
     # existing documents Document.outdated; run bin/rails citewise:reingest to re-chunk.
