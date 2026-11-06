@@ -55,7 +55,7 @@ gem "thruster", require: false
 gem "image_processing", "~> 2.2"
 gem "ruby-vips", "~> 2.3"
 # Active Storage's S3 service, for Cloudflare R2 in production [https://github.com/aws/aws-sdk-ruby]
-gem "aws-sdk-s3", "1.233.2", require: false
+gem "aws-sdk-s3", "1.235.0", require: false
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
