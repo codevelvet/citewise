@@ -44,6 +44,8 @@ services:
         sync: false
       - key: R2_BUCKET
         sync: false
+      - key: CITEWISE_TRUST_CLOUDFLARE_IP
+        value: "true"
 
 databases:
   - name: citewise-db

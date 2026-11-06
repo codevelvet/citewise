@@ -112,7 +112,7 @@ Before day 30, either upgrade the database, or re-create it, then re-import and 
 ### Other differences
 
 - **Both services:** where this runbook says "both services", the free plan has only `citewise-web`. When you rotate a secret, also update `~/.config/citewise/prod.env`.
-- **Confirming the deploy:** the shell-based checks in [step 6](#6-confirm-the-deploy) need a substitute. Run `prod bin/rails runner 'puts Session.last.ip_address'` from the Mac for the client-IP check. The `localhost` host check can't be run without a shell, and the backups check doesn't apply.
+- **Confirming the deploy:** the shell-based checks in [step 6](#6-confirm-the-deploy) need a substitute. Run `prod bin/rails runner 'puts Session.last.ip_address'` from the Mac for the client-IP check. The spoofing check runs from the Mac anyway. The `localhost` host check can't be run without a shell, and the backups check doesn't apply.
 
 ## First deploy
 
@@ -205,14 +205,17 @@ The host is the service's `onrender.com` name, such as `citewise-web.onrender.co
 - **HTTPS.** `curl -sI http://<host>/session/new` should redirect to `https://`. That redirect comes from Render's edge: the app treats every request as HTTPS (`assume_ssl`), so it never redirects by itself. `curl -sI https://<host>/session/new` should return `200` with a `strict-transport-security` header.
 - **Secure cookie.** In that same response, `set-cookie: _citewise_session=…` must include `secure`. After you sign in, the `session_id` cookie in the browser's developer tools must show **Secure** too.
 - **Host check.** Render routes by Host, so test this from the web shell: `curl -sI -H "Host: evil.example" http://localhost:10000/session/new` should return `403`. `curl -sI http://localhost:10000/up` should return `200`.
-- **Client IP.** The sign-in rate limit (10 tries per 3 minutes) is keyed by `request.remote_ip`. To check it:
+- **Client IP.** The sign-in rate limit (10 tries per 3 minutes) is keyed by `request.remote_ip`. Render's traffic comes through Cloudflare, so without help that's a Cloudflare edge address (often `104.x`). `render.yaml` sets `CITEWISE_TRUST_CLOUDFLARE_IP=true`, which takes the visitor's address from Cloudflare's `True-Client-IP` header, falling back to `CF-Connecting-IP`. `X-Forwarded-For` isn't used, because Render passes on whatever the client sent. To check it:
   1. Run `curl https://ifconfig.me` on the Mac.
   2. Sign in from the Mac.
   3. In `citewise-web`'s logs, find `Started POST "/session" for <ip>`. That IP must match the Mac's.
   4. `bin/rails runner 'puts Session.last.ip_address'` in the shell should show the same.
   5. Repeat from a phone on cellular. It should show the phone's address, not the Mac's.
+  6. Confirm the header can't be spoofed. From the Mac, run `curl -s -o /dev/null https://<host>/session/new -H 'True-Client-IP: 203.0.113.9' -H 'CF-Connecting-IP: 203.0.113.9'`. Its `Started GET "/session/new" for <ip>` line must show the Mac's address, not `203.0.113.9`.
 
-  If both show the same address, or it's a `10.x`, `172.16–31.x`, or Render-owned address, every visitor shares one rate-limit bucket. Don't turn the page on until that's fixed.
+  If both devices show the same address, or it's a `10.x`, `172.16–31.x`, Cloudflare, or Render-owned address, every visitor shares one rate-limit bucket. Check that `CITEWISE_TRUST_CLOUDFLARE_IP` is `true` on `citewise-web`. If the log shows `203.0.113.9`, anyone can pick their own IP and dodge the limit. Either way, don't turn the page on until it's fixed.
+
+  Only set `CITEWISE_TRUST_CLOUDFLARE_IP` where Cloudflare is in front. If you self-host without Cloudflare, leave it unset: anyone could send the header and choose their own IP.
 - **Backups.** On `citewise-db`'s **Recovery** page, check that point-in-time recovery is available and that a backup exists.
 - **Version.** Signed in, `https://<host>/session/new` shows `Version <commit>` in the footer. While the ask page is off, `/` returns 404.
 

@@ -109,6 +109,24 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "behind Cloudflare, sign-in attempts are limited per True-Client-IP" do
+    Rails.configuration.x.trust_cloudflare_ip = true
+    counts = ActiveSupport::Cache::MemoryStore.new
+    stub(Rails.cache, :increment, ->(*args, **options) { counts.increment(*args, **options) }) do
+      10.times do
+        post session_path, params: { email_address: @user.email_address, password: "wrong password!" }, headers: { "True-Client-IP" => "203.0.113.9" }
+      end
+
+      post session_path, params: { email_address: @user.email_address, password: PASSWORD }, headers: { "True-Client-IP" => "203.0.113.9" }
+      assert_equal "Try again later.", flash[:alert]
+
+      post session_path, params: { email_address: @user.email_address, password: PASSWORD }, headers: { "True-Client-IP" => "203.0.113.10" }
+      assert_redirected_to root_url
+    end
+  ensure
+    Rails.configuration.x.trust_cloudflare_ip = false
+  end
+
   test "signing out destroys the session and its cookie" do
     sign_in
     session_record = @user.sessions.sole
