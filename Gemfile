@@ -55,7 +55,7 @@ gem "thruster", require: false
 gem "image_processing", "~> 2.2"
 gem "ruby-vips", "~> 2.3"
 # Active Storage's S3 service, for Cloudflare R2 in production [https://github.com/aws/aws-sdk-ruby]
-gem "aws-sdk-s3", "1.233.2", require: false
+gem "aws-sdk-s3", "1.237.0", require: false
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -80,7 +80,7 @@ group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
   # Drives Chromium and WebKit through the Playwright CLI [https://github.com/YusukeIwaki/capybara-playwright-driver]
-  gem "capybara-playwright-driver", "0.5.13"
+  gem "capybara-playwright-driver", "0.5.14"
   # Must match the playwright CLI's version: see .devcontainer/Dockerfile and the system-test CI job
   gem "playwright-ruby-client", "1.64.0"
   # Blocks real HTTP in tests [https://github.com/bblimke/webmock]
